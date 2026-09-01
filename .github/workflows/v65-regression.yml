@@ -1,0 +1,23 @@
+name: V6.5 Regression
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          for f in js/*.js; do node --check "$f"; done
+      - name: Run smart berthing regression
+        run: node tests/v6_free_boarding.test.js
+      - name: Run boarding queue regression
+        run: node tests/v6_4_boarding_queue.test.js
+      - name: Run enemy AI regression
+        run: node tests/v6_5_enemy_ai.test.js
