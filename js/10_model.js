@@ -105,7 +105,15 @@ function shipsTouchPlayer(e){
 function lockEnemyContact(e){
   if(!shipsTouchPlayer(e))return false;
   const p=contactPointForEnemy(e),c=enemyCollider(e);
-  e.x=p.x+c.rx-PLAYER_COLLIDER.skin;
+  const targetX=p.x+c.rx-PLAYER_COLLIDER.skin;
+  for(const o of g.enemies){
+    if(o===e||o.gone||o.state==='sink'||o.state!=='docked'||!o.contact)continue;
+    const oc=enemyCollider(o);
+    const overlapX=Math.abs(targetX-o.x)<c.rx+oc.rx;
+    const overlapY=Math.abs(p.y-o.y)<c.ry+oc.ry+6;
+    if(overlapX&&overlapY)return false;
+  }
+  e.x=targetX;
   e.contact=true;e.contactX=p.x;e.contactY=p.y;
   e.contactNormalX=p.normalX;e.contactNormalY=p.normalY;
   return true;
