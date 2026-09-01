@@ -1,8 +1,8 @@
 /* ================= 数据 ================= */
 const TYPES={
-  sloop  :{s:0.62,hull:'#8a3b2e',deck:'#a97a55',hp:48 ,sp:118,pir:3,gold:65 ,role:'board', shoot:false,name:'突击艇'},
-  gunship:{s:0.85,hull:'#3f4450',deck:'#7d6a55',hp:105,sp:62 ,pir:0,gold:120,role:'ranged',shoot:true ,name:'炮舰'},
-  manowar:{s:1.05,hull:'#2e7d4f',deck:'#7fa06a',hp:230,sp:42 ,pir:7,gold:220,role:'heavy', shoot:false,name:'巨舰'},
+  sloop  :{s:0.62,hull:'#8a3b2e',deck:'#a97a55',hp:48 ,sp:118,pir:3,gold:65 ,role:'board', shoot:false,name:'突击艇',colL:190,colB:112},
+  gunship:{s:0.85,hull:'#3f4450',deck:'#7d6a55',hp:105,sp:62 ,pir:0,gold:120,role:'ranged',shoot:true ,name:'炮舰',colL:205,colB:122},
+  manowar:{s:1.05,hull:'#2e7d4f',deck:'#7fa06a',hp:230,sp:42 ,pir:7,gold:220,role:'heavy', shoot:false,name:'巨舰',colL:225,colB:136},
 };
 const WAVES=[
   ['sloop','gunship','sloop'],
@@ -29,6 +29,7 @@ const SLOTS={
   lower:{key:'lower',label:'下舷',y:710,plankY:668,hookY:712},
   both :{key:'both', label:'双舷',y:560},
 };
+const PLAYER_COLLIDER={cx:430,cy:560,rx:172,ry:310,skin:7};
 const BTN_PAUSE={x:1856,y:62,r:32};
 const BTN_START={x:810,y:648,w:300,h:88};
 const BTN_AGAIN ={x:810,y:660,w:300,h:88};
@@ -61,19 +62,81 @@ function startWave(n){
 function spawnEnemy(type){
   const t=TYPES[type];
   const e={type,t,s:t.s,x:2070,y:rand(250,870),hp:t.hp,max:t.hp,state:'approach',rot:0,turnT:0,
-    deployed:0,deployT:0,shootT:rand(2.4,4),flash:0,ph:rand(0,6.28),sinkT:0,slot:null,clearT:0,
+    deployed:0,deployT:0,shootT:rand(2.4,4),flash:0,ph:rand(0,6.28),sinkT:0,slot:null,clearT:0,contact:false,
     rangeX:rand(1260,1510),rangeY:rand(300,820),gone:false};
   g.enemies.push(e);
 }
-function dockCX(e){return 720+152*e.s;}
 function inShip(e,x,y){
   const hx=(e.rot>0.6?158:200)*e.s,hy=(e.rot>0.6?238:145)*e.s;
   return Math.abs(x-e.x)<hx&&Math.abs(y-e.y)<hy;
 }
+
+/* ================= 船体碰撞层 ================= */
+function playerHullRightX(y){
+  const ny=(y-PLAYER_COLLIDER.cy)/PLAYER_COLLIDER.ry;
+  if(Math.abs(ny)>=1)return PLAYER_COLLIDER.cx;
+  return PLAYER_COLLIDER.cx+PLAYER_COLLIDER.rx*Math.sqrt(Math.max(0,1-ny*ny));
+}
+function enemyCollider(e){
+  const long=(e.t.colL||200)*e.s,beam=(e.t.colB||120)*e.s;
+  const c=Math.abs(Math.cos(e.rot||0)),s=Math.abs(Math.sin(e.rot||0));
+  return {rx:long*c+beam*s,ry:long*s+beam*c};
+}
+function enemyCollisionRadius(e){
+  const c=enemyCollider(e);
+  return Math.max(c.rx,c.ry);
+}
+function slotTargetY(e){
+  return e.slot==='both'?SLOTS.both.y:(SLOTS[e.slot]?.y??e.y);
+}
+function dockCX(e){
+  const y=slotTargetY(e),c=enemyCollider(e);
+  return playerHullRightX(y)+c.rx-PLAYER_COLLIDER.skin;
+}
+function shipsTouchPlayer(e){
+  if(!e||!e.slot||e.state==='sink'||e.gone)return false;
+  if((e.rot||0)<Math.PI/2-0.10)return false;
+  const ty=slotTargetY(e),c=enemyCollider(e);
+  const verticalOK=Math.abs(e.y-ty)<=Math.max(24,c.ry*.22);
+  const enemyLeft=e.x-c.rx,playerRight=playerHullRightX(ty);
+  return verticalOK&&enemyLeft<=playerRight+PLAYER_COLLIDER.skin+3;
+}
+function constrainEnemyOutsidePlayer(e){
+  if(!e||e.state==='sink'||e.gone||e.t.role==='ranged')return;
+  const c=enemyCollider(e);
+  const dy=Math.abs(e.y-PLAYER_COLLIDER.cy);
+  if(dy>PLAYER_COLLIDER.ry+c.ry*.5)return;
+  const minX=playerHullRightX(e.y)+c.rx-PLAYER_COLLIDER.skin;
+  if(e.x<minX)e.x=minX;
+}
+function resolveEnemyShipCollisions(){
+  const a=g.enemies.filter(e=>e.state!=='sink'&&!e.gone);
+  for(let i=0;i<a.length;i++)for(let j=i+1;j<a.length;j++){
+    const A=a[i],B=a[j],ca=enemyCollider(A),cb=enemyCollider(B);
+    const dx=B.x-A.x,dy=B.y-A.y;
+    const ox=ca.rx+cb.rx-Math.abs(dx),oy=ca.ry+cb.ry-Math.abs(dy);
+    if(ox<=0||oy<=0)continue;
+    const staticA=A.state==='docked',staticB=B.state==='docked';
+    if(staticA&&staticB)continue;
+    if(ox<oy){
+      const dir=dx>=0?1:-1;
+      if(staticA)B.x+=dir*ox;
+      else if(staticB)A.x-=dir*ox;
+      else{A.x-=dir*ox*.5;B.x+=dir*ox*.5;}
+    }else{
+      const dir=dy>=0?1:-1;
+      if(staticA)B.y+=dir*oy;
+      else if(staticB)A.y-=dir*oy;
+      else{A.y-=dir*oy*.5;B.y+=dir*oy*.5;}
+    }
+  }
+  for(const e of a)constrainEnemyOutsidePlayer(e);
+}
+
 function deckCombat(){return g.boarders.some(b=>b.hp>0);}
-function boardingMode(){return deckCombat()||g.enemies.some(e=>e.state==='turning'||e.state==='docked');}
+function boardingMode(){return deckCombat()||g.enemies.some(e=>e.state==='turning'||e.state==='closing'||e.state==='docked');}
 function slotBlocked(key,except){
-  return g.enemies.some(e=>e!==except&&e.state!=='sink'&&!e.gone&&(e.state==='turning'||e.state==='docked')&&(e.slot==='both'||e.slot===key));
+  return g.enemies.some(e=>e!==except&&e.state!=='sink'&&!e.gone&&(e.state==='turning'||e.state==='closing'||e.state==='docked')&&(e.slot==='both'||e.slot===key));
 }
 function chooseDockSlot(e){
   if(e.type==='manowar')return !slotBlocked('upper',e)&&!slotBlocked('lower',e)?'both':null;
