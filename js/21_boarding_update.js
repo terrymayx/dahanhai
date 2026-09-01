@@ -1,4 +1,5 @@
 function deployBoarder(e){
+  if(!shipsTouchPlayer(e))return false;
   const useUpper=e.slot==='upper'||(e.slot==='both'&&e.deployed%2===0),slot=useUpper?SLOTS.upper:SLOTS.lower;
   const r=Math.random();let method=r<.58?'plank':r<.82?'swing':'climb';
   const band=e.deployed%2?'#d93636':'#3a3f4a',hp=e.type==='manowar'?52:42;
@@ -11,6 +12,7 @@ function deployBoarder(e){
   }else{
     g.boarders.push({ship:e,hp,max:hp,band,x:615,y:slot.plankY+(useUpper?65:-65),atkT:rand(.3,.7),anim:0,method,state:'climb',climbT:0,to:{x:566,y:slot.plankY+rand(-35,35)}});
   }
+  return true;
 }
 function updateBoarder(b,dt){
   if(b.state==='plank'){
@@ -57,17 +59,37 @@ function update(dt){
     }
     if(e.state==='approach'||e.state==='hold'){
       const waitX=1040+120*e.s;if(e.x>waitX){e.x=Math.max(waitX,e.x-e.t.sp*SPD*dt);e.state='approach';}
-      else{const slot=chooseDockSlot(e);if(slot){e.slot=slot;e.state='turning';e.turnT=0;}else{e.state='hold';e.y+=Math.sin(g.time+e.ph)*6*dt;}}
+      else{const slot=chooseDockSlot(e);if(slot){e.slot=slot;e.state='turning';e.turnT=0;e.contact=false;}else{e.state='hold';e.y+=Math.sin(g.time+e.ph)*6*dt;}}
     }else if(e.state==='turning'){
-      e.turnT=Math.min(1,e.turnT+dt/.9);e.rot=e.turnT*Math.PI/2;const ty=SLOTS[e.slot].y;e.x+=(dockCX(e)-e.x)*Math.min(1,dt*3);e.y+=(ty-e.y)*Math.min(1,dt*3);
-      if(e.turnT>=1){e.state='docked';e.deployT=.45;g.warnT=3.5;sfx.alarm();}
+      e.turnT=Math.min(1,e.turnT+dt/.9);e.rot=e.turnT*Math.PI/2;
+      const ty=slotTargetY(e),stageX=dockCX(e)+150+45*e.s;
+      e.x+=(stageX-e.x)*Math.min(1,dt*2.4);e.y+=(ty-e.y)*Math.min(1,dt*3);
+      if(e.turnT>=1){e.state='closing';e.contact=false;}
+    }else if(e.state==='closing'){
+      const ty=slotTargetY(e),targetX=dockCX(e);
+      e.y+=(ty-e.y)*Math.min(1,dt*3.2);
+      const speed=e.t.sp*.42*SPD;
+      e.x=Math.max(targetX,e.x-speed*dt);
+      constrainEnemyOutsidePlayer(e);
+      if(shipsTouchPlayer(e)){
+        e.x=dockCX(e);e.y=ty;e.state='docked';e.contact=true;e.deployT=.45;g.warnT=3.5;sfx.alarm();
+      }
     }else if(e.state==='docked'){
-      if(e.deployed<e.t.pir){e.deployT-=dt*SPD;if(e.deployT<=0){e.deployT=e.type==='manowar'?.72:.95;e.deployed++;deployBoarder(e);}}
-      else if(!g.boarders.some(b=>b.ship===e&&b.hp>0)){e.clearT+=dt;if(e.clearT>1.0)e.state='retreat';}else e.clearT=0;
+      e.x=dockCX(e);e.y=slotTargetY(e);e.contact=shipsTouchPlayer(e);
+      if(!e.contact){e.state='closing';continue;}
+      if(e.deployed<e.t.pir){
+        e.deployT-=dt*SPD;
+        if(e.deployT<=0){
+          e.deployT=e.type==='manowar'?.72:.95;
+          if(deployBoarder(e))e.deployed++;
+        }
+      }else if(!g.boarders.some(b=>b.ship===e&&b.hp>0)){e.clearT+=dt;if(e.clearT>1.0)e.state='retreat';}else e.clearT=0;
     }else if(e.state==='retreat'){
-      e.rot=Math.max(0,e.rot-dt*1.5);e.x+=e.t.sp*.9*dt;e.y+=(560-e.y)*Math.min(1,dt*.35);if(e.x>2180)e.gone=true;
+      e.contact=false;e.rot=Math.max(0,e.rot-dt*1.5);e.x+=e.t.sp*.9*dt;e.y+=(560-e.y)*Math.min(1,dt*.35);if(e.x>2180)e.gone=true;
     }
   }
+
+  resolveEnemyShipCollisions();
   g.enemies=g.enemies.filter(e=>!e.gone&&!(e.state==='sink'&&e.sinkT>1.35));
 
   g.cannonT-=dt*(g.rallyT>0?1.6:1)*(g.crew[3].alive?1.22:1);if(g.cannonT<=0){if(passiveCannon())g.cannonT=2.25;else g.cannonT=.5;}
