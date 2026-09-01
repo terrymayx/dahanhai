@@ -1,42 +1,63 @@
+/* V6.4 BOARDING QUEUE START */
+function boardingChannelCount(e){return e&&e.type==='manowar'?2:1;}
+function boardingChannelOffset(e,channel){
+  if(boardingChannelCount(e)===1)return 0;
+  return channel===0?-34:34;
+}
+function boardingChannelBusy(e,channel){
+  return g.boarders.some(b=>b.hp>0&&b.ship===e&&b.boardingChannel===channel&&b.state!=='fight');
+}
+function chooseBoardingChannel(e){
+  const count=boardingChannelCount(e);
+  for(let channel=0;channel<count;channel++)if(!boardingChannelBusy(e,channel))return channel;
+  return -1;
+}
+/* V6.4 BOARDING QUEUE END */
+
 function deployBoarder(e){
   if(!e||e.state!=='docked'||!e.contact||
      !Number.isFinite(e.contactX)||!Number.isFinite(e.contactY)||
      !shipsTouchPlayer(e))return false;
+  const channel=chooseBoardingChannel(e);if(channel<0)return false;
+  const ec=enemyCollider(e),laneOffset=boardingChannelOffset(e,channel);
+  const laneY=clampContactY(e.contactY+laneOffset,ec.ry);
+  const laneContactX=playerHullRightX(laneY);
   const bowX=enemyBowX(e)+18;
-  const entryX=Math.min(580,e.contactX-18);
-  const entryY=e.contactY;
+  const entryX=Math.min(580,laneContactX-18);
+  const entryY=laneY;
   const r=Math.random();let method=r<.58?'plank':r<.82?'swing':'climb';
   const band=e.deployed%2?'#d93636':'#3a3f4a',hp=e.type==='manowar'?52:42;
   if(method==='plank'){
     const landing={x:entryX,y:entryY+rand(-26,26)};
-    g.boarders.push({ship:e,hp,max:hp,band,x:bowX,y:e.y+rand(-14,14),i:0,atkT:rand(.3,.7),anim:0,
-      method:'plank',state:'plank',wp:[{x:e.contactX+12,y:e.contactY},{x:landing.x,y:landing.y}]});
-    splashFx(e.contactX,e.contactY,.5);
+    g.boarders.push({ship:e,hp,max:hp,band,x:bowX,y:e.y+laneOffset+rand(-10,10),i:0,atkT:rand(.3,.7),anim:0,
+      boardingChannel:channel,boardingLaneY:laneY,method:'plank',state:'plank',
+      wp:[{x:laneContactX+12,y:laneY},{x:landing.x,y:landing.y}]});
+    splashFx(laneContactX,laneY,.5);
   }else if(method==='swing'){
-    const anchor={x:bowX+10,y:e.y+rand(-26,26)};
-    const to={x:entryX,y:entryY+rand(-55,55)};
+    const anchor={x:bowX+10,y:e.y+laneOffset+rand(-18,18)};
+    const to={x:entryX,y:entryY+rand(-42,42)};
     g.boarders.push({ship:e,hp,max:hp,band,x:anchor.x,y:anchor.y+28,atkT:rand(.3,.7),anim:0,
-      method:'swing',state:'swing',swingT:0,dur:.9,anchor,from:{x:anchor.x,y:anchor.y+28},to});
+      boardingChannel:channel,boardingLaneY:laneY,method:'swing',state:'swing',swingT:0,dur:.9,anchor,from:{x:anchor.x,y:anchor.y+28},to});
   }else{
-    const to={x:entryX,y:entryY+rand(-32,32)};
-    g.boarders.push({ship:e,hp,max:hp,band,x:bowX,y:e.y+rand(-24,24),atkT:rand(.3,.7),anim:0,
-      method:'climb',state:'climb',climbT:0,to});
+    const to={x:entryX,y:entryY+rand(-28,28)};
+    g.boarders.push({ship:e,hp,max:hp,band,x:bowX,y:e.y+laneOffset+rand(-16,16),atkT:rand(.3,.7),anim:0,
+      boardingChannel:channel,boardingLaneY:laneY,method:'climb',state:'climb',climbT:0,to});
   }
   return true;
 }
 function updateBoarder(b,dt){
   if(b.state==='plank'){
-    const wp=b.wp[b.i];if(!wp){b.state='fight';return;}const d=dist(b.x,b.y,wp.x,wp.y);
+    const wp=b.wp[b.i];if(!wp){b.state='fight';b.boardingChannel=null;return;}const d=dist(b.x,b.y,wp.x,wp.y);
     if(d<10)b.i++;else{b.x+=(wp.x-b.x)/d*82*SPD*dt;b.y+=(wp.y-b.y)/d*82*SPD*dt;}return;
   }
   if(b.state==='swing'){
     b.swingT+=dt;const p=clamp(b.swingT/b.dur,0,1),q=1-p,cx=(b.anchor.x+b.to.x)/2-20,cy=Math.min(b.anchor.y,b.to.y)-115;
     b.x=q*q*b.from.x+2*q*p*cx+p*p*b.to.x;b.y=q*q*b.from.y+2*q*p*cy+p*p*b.to.y;
-    if(p>=1)b.state='fight';return;
+    if(p>=1){b.state='fight';b.boardingChannel=null;}return;
   }
   if(b.state==='climb'){
     b.climbT+=dt;const p=clamp(b.climbT/.75,0,1);b.x=b.x+(b.to.x-b.x)*Math.min(1,dt*5);b.y=b.y+(b.to.y-b.y)*Math.min(1,dt*5);
-    if(p>=1)b.state='fight';return;
+    if(p>=1){b.state='fight';b.boardingChannel=null;}return;
   }
   let tgt=null,best=1e9;for(const c of g.crew)if(c.alive){const d=dist(b.x,b.y,c.x,c.y);if(d<best){best=d;tgt=c;}}
   if(tgt){
@@ -125,8 +146,10 @@ function update(dt){
       if(e.deployed<e.t.pir){
         e.deployT-=dt*SPD;
         if(e.deployT<=0){
-          e.deployT=e.type==='manowar'?.72:.95;
-          if(deployBoarder(e))e.deployed++;
+          if(deployBoarder(e)){
+            e.deployed++;
+            e.deployT=e.type==='manowar'&&chooseBoardingChannel(e)>=0?.16:.12;
+          }else e.deployT=.12;
         }
       }else if(!g.boarders.some(b=>b.ship===e&&b.hp>0)){
         e.clearT+=dt;
@@ -165,7 +188,7 @@ function update(dt){
     let tgt=[...g.boarders].filter(b=>b.hp>0).sort((a,b)=>((a.state==='swing'&&c.id==='archer')?-500:0)-((b.state==='swing'&&c.id==='archer')?-500:0)+dist(c.x,c.y,a.x,a.y)-dist(c.x,c.y,b.x,b.y))[0]||null;
     if(c.id==='captain')moveCaptain(c,tgt,dt);
     const best=tgt?dist(c.x,c.y,tgt.x,tgt.y):1e9;
-    if(tgt&&best<=c.rg){c.atkT-=dt*rate;if(c.atkT<=0){c.atkT=c.itv;c.anim=.3;const ang=Math.atan2(tgt.y-c.y,tgt.x-c.x);if(c.id==='captain'){damageBoarder(tgt,c.dmg,tgt.x,tgt.y);slashFx(tgt.x,tgt.y,ang);sfx.slash();}else if(c.id==='archer'){g.fx.push({k:'line',x:c.x,y:c.y,x2:tgt.x,y2:tgt.y,t:0,dur:.15});damageBoarder(tgt,c.dmg,tgt.x,tgt.y);sparkFx(tgt.x,tgt.y,.6);sfx.arrow();}else if(c.id==='gunner'){g.fx.push({k:'bomb',x:c.x,y:c.y,x2:tgt.x,y2:tgt.y,t:0,dur:.5});for(const b2 of g.boarders)if(b2.hp>0&&dist(tgt.x,tgt.y,b2.x,b2.y)<c.aoe){damageBoarder(b2,c.dmg,b2.x,b2.y);sparkFx(b2.x,b2.y,.8);}sfx.boom();}else{damageBoarder(tgt,c.dmg,tgt.x,tgt.y);sparkFx(tgt.x,tgt.y,.5);}}}
+    if(tgt&&best<=c.rg){c.atkT-=dt*rate;if(c.atkT<=0){c.atkT=c.itv;c.anim=.3;const ang=Math.atan2(tgt.y-c.y,tgt.x-c.x);if(c.id==='captain'){damageBoarder(tgt,c.dmg,tgt.x,tgt.y);slashFx(tgt.x,tgt.y,ang);sfx.slash();}else if(c.id==='archer'){g.fx.push({k:'line',x:c.x,y:c.y,x2:tgt.x,y2:tgt.y,t:0,dur:.15});damageBoarder(tgt,c.dmg,tgt.x,tgt.y);sparkFx(tgt.x,tgt.y,.6);sfx.arrow();}else if(c.id==='gunner'){g.fx.push({k:'bomb',x:c.x,y:c.y,x2:tgt.x,tgt.y,t:0,dur:.5});for(const b2 of g.boarders)if(b2.hp>0&&dist(tgt.x,tgt.y,b2.x,b2.y)<c.aoe){damageBoarder(b2,c.dmg,b2.x,b2.y);sparkFx(b2.x,b2.y,.8);}sfx.boom();}else{damageBoarder(tgt,c.dmg,tgt.x,tgt.y);sparkFx(tgt.x,tgt.y,.5);}}}
     else if(c.id==='archer'&&!g.boarders.length){const t=targetForFire();if(t){c.atkT-=dt*rate;if(c.atkT<=0){c.atkT=c.itv;c.anim=.3;const d=dist(c.x,c.y,t.x,t.y);g.arrows.push({x:c.x+30,y:c.y-6,vx:(t.x-c.x)/d*950,vy:(t.y-c.y)/d*950,dmg:c.dmg});sfx.arrow();}}}
   }
 
