@@ -1,3 +1,4 @@
+// V6.9 RED/GREEN regression trigger.
 const fs=require('fs');
 const path=require('path');
 const assert=require('assert');
