@@ -43,12 +43,14 @@ spawnEnemy=function(type){
 const _deployBoarderLevel=deployBoarder;
 deployBoarder=function(e){
   const before=g.boarders.length;
-  _deployBoarderLevel(e);
+  const deployed=_deployBoarderLevel(e);
+  if(!deployed)return false;
   const scale=levelBoarderScale(g.level);
   for(let i=before;i<g.boarders.length;i++){
     g.boarders[i].hp=Math.round(g.boarders[i].hp*scale);
     g.boarders[i].max=g.boarders[i].hp;
   }
+  return true;
 };
 
 function prepareNextLevel(){
