@@ -34,9 +34,12 @@ assert.match(v69,/while\s*\(g\.waveClock\s*>=\s*V69_WAVE_INTERVAL\)/,'wave timer
 assert.match(v69,/g\.state\s*===\s*['"]win['"][^\n]*g\.state\s*=\s*['"]playing['"]/,'endless mode must suppress normal win state');
 
 assert.match(v69,/function\s+chooseV69ArcherTarget\s*\(/,'archer target helper must exist');
-const fightPos=v69.indexOf("state==='fight'");
-const transitPos=Math.min(...['plank','swing','climb'].map(s=>v69.indexOf(`state==='${s}'`)).filter(n=>n>=0));
-const shipPos=v69.indexOf('g.enemies');
+const targetFn=v69.match(/function\s+chooseV69ArcherTarget\s*\(\)\s*\{([\s\S]*?)\n\}/);
+assert.ok(targetFn,'archer target helper body must be readable');
+const body=targetFn[1];
+const fightPos=body.indexOf("state==='fight'");
+const transitPos=Math.min(...['plank','swing','climb'].map(s=>body.indexOf(`state==='${s}'`)).filter(n=>n>=0));
+const shipPos=body.indexOf('g.enemies');
 assert.ok(fightPos>=0&&transitPos>fightPos&&shipPos>transitPos,'archer priority must be fight boarder -> transit boarder -> enemy ship');
 assert.match(v69,/function\s+fireV69Archer\s*\(/,'continuous archer fire helper must exist');
 assert.match(v69,/v69ArcherT/,'archer automatic fire timer must exist');
