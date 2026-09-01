@@ -23,9 +23,9 @@ assert(/contactY/.test(model), 'enemy model must expose contactY');
 assert(/function\s+contactPointForEnemy/.test(model), 'dynamic contact point helper missing');
 assert(/function\s+lockEnemyContact/.test(model), 'contact lock helper missing');
 assert(/function\s+clearEnemyContact/.test(model), 'contact clear helper missing');
-assert(/sloop\s*:\{s:0\.52,/.test(model), 'sloop scale must be 0.52');
-assert(/gunship\s*:\{s:0\.72,/.test(model), 'gunship scale must be 0.72');
-assert(/manowar\s*:\{s:0\.88,/.test(model), 'manowar scale must be 0.88');
+assert(/sloop\s*:\{s:0\.42,/.test(model), 'sloop scale must be 0.42');
+assert(/gunship\s*:\{s:0\.56,/.test(model), 'gunship scale must be 0.56');
+assert(/manowar\s*:\{s:0\.68,/.test(model), 'manowar scale must be 0.68');
 
 assert(!/SLOTS\./.test(boarding), 'boarding routes must not depend on fixed SLOTS');
 assert(!/chooseDockSlot\s*\(/.test(boarding), 'boarding must not reserve fixed slots');
@@ -47,7 +47,7 @@ assert(/state==='docked'&&e\.contact/.test(hud.replace(/\s+/g,'')), 'HUD docked 
 
 assert(!/41_collision_visual\.js/.test(index), 'old collision visual patch must not load');
 assert(!/58_berthing_contact_fix\.js/.test(index), 'old berthing patch must not load');
-assert(/V6\.1/.test(index), 'index must publish V6.1');
+assert(/V6\.2/.test(index), 'index must publish V6.2');
 
 assert(/const deployed=_deployBoarderLevel\(e\)/.test(levels));
 assert(/if\(!deployed\)return false/.test(levels));
@@ -71,4 +71,4 @@ for(const y of [330,430,560,690,790]){
   assert(x>=430 && x<=602);
 }
 
-console.log('PASS: V6.1 free boarding regression');
+console.log('PASS: V6.2 free boarding regression');
