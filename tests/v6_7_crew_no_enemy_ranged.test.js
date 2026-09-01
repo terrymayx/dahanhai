@@ -28,6 +28,10 @@ const ctx={
 vm.createContext(ctx);
 vm.runInContext(model,ctx);
 ctx.crewCombatProfile=(c)=>({min:18,preferred:34,speed:90});
+vm.runInContext(`update=function(){
+  g.eballs.push({x:1200,y:560,vx:-350,vy:0,life:4});
+  g.eballs=g.eballs.filter(()=>true);
+};`,ctx);
 vm.runInContext(v67,ctx);
 
 const crew=vm.runInContext('CREW_DEF.map(c=>({...c}))',ctx);
@@ -49,6 +53,11 @@ const pushed=state.eballs.push({x:1000,y:500,vx:-350,vy:0,life:4});
 assert.strictEqual(state.eballs.length,before,'enemy cannonball push must be suppressed');
 assert.strictEqual(pushed,before,'suppressed enemy cannonball push must report unchanged length');
 assert.strictEqual(vm.runInContext('TYPES.gunship.shoot',ctx),false,'gunship firing flag must be false');
+
+const liveEnemyBallCount=vm.runInContext('update(.016);g.eballs.length',ctx);
+assert.strictEqual(liveEnemyBallCount,0,'V6.7 update wrapper must keep enemy cannonballs at zero even if old AI tries to fire and replaces the array');
+const afterUpdatePush=vm.runInContext("g.eballs.push({x:900,y:560});g.eballs.length",ctx);
+assert.strictEqual(afterUpdatePush,0,'V6.7 must reinstall the no-op enemy projectile push after old filter logic replaces the array');
 
 const sailorProfile=ctx.crewCombatProfile({id:'sailor1'});
 assert(sailorProfile.preferred<=45&&sailorProfile.min<=25,'sailors must use melee deck-combat spacing');
