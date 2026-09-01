@@ -19,15 +19,10 @@ assert.match(index,/js\/25_v69_endless_waves\.js/,'index must load V6.9 layer');
 assert.doesNotMatch(index,/js\/55_levels\.js/,'level system must not load');
 assert.doesNotMatch(index,/js\/59_melee_test_mode\.js/,'old melee-test archer suppression must not load');
 
-for(const type of ['sloop','gunship','manowar']){
-  const m=model.match(new RegExp(`${type}\\s*:\\{([^}]+)\\}`));
-  assert.ok(m,`${type} type must exist`);
-  assert.match(m[1],/pir\s*:\s*[1-9]\d*/i,`${type} must carry pirates`);
-  assert.match(m[1],/shoot\s*:\s*false/i,`${type} must not shoot`);
-  assert.doesNotMatch(m[1],/role\s*:\s*['"]ranged['"]/i,`${type} must not be ranged`);
-}
-assert.match(model,/gunship\s*:\{[^}]*pir\s*:\s*5/i,'medium troop ship must carry 5 pirates');
-assert.match(model,/manowar\s*:\{[^}]*pir\s*:\s*8/i,'heavy troop ship must carry 8 pirates');
+assert.match(model,/sloop\s*:\{[^}]*pir\s*:\s*3[^}]*shoot\s*:\s*false/i,'sloop must remain troop carrier');
+assert.match(v69,/Object\.assign\(TYPES\.gunship\s*,\s*\{[^}]*pir\s*:\s*5[^}]*role\s*:\s*['"]board['"][^}]*shoot\s*:\s*false/i,'gunship must become 5-pirate troop carrier');
+assert.match(v69,/Object\.assign\(TYPES\.manowar\s*,\s*\{[^}]*pir\s*:\s*8[^}]*shoot\s*:\s*false/i,'manowar must become 8-pirate troop carrier');
+assert.doesNotMatch(v69,/TYPES\.\w+\.role\s*=\s*['"]ranged['"]/i,'V6.9 must not create ranged enemy roles');
 
 assert.match(v69,/const\s+V69_WAVE_INTERVAL\s*=\s*15\b/,'wave interval must be exactly 15 seconds');
 assert.match(v69,/function\s+v69WaveShipCount\s*\(/,'wave ship-count helper must exist');
