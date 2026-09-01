@@ -44,21 +44,18 @@ V5.x 仍以 `SLOTS.upper / lower / both` 为核心：
 
 ### 2. 动态接触数据
 
-删除敌船的固定槽位字段，接舷船在真正贴帮时记录：
+删除敌船的固定槽位字段，接舷船在真正贴帮时只记录：
 
 ```js
 contactX
 contactY
-contactNormalX
-contactNormalY
 contact=false|true
 ```
 
 其中：
 
 - `contactY` 是敌船实际与旗舰右侧船体相交的位置；
-- `contactX = playerHullRightX(contactY)`；
-- normal 预留给未来更真实的跳板方向，本版可按旗舰右侧法向近似。
+- `contactX = playerHullRightX(contactY)`。
 
 `docked` 后以这组接触数据为唯一接舷依据，不再重新吸附到预设 Y。
 
@@ -127,7 +124,7 @@ enemyBowX(e)
 
 不再读取 `SLOTS.upper.plankY`、`SLOTS.lower.plankY` 或固定 hookY。
 
-巨舰本版仍使用**一个动态接触中心**，但可按船宽生成两条相邻跳板，位置为 `contactY ± offset`，前提是两个点都落在旗舰可接触边界内。这样保留巨舰“多人同时登船”的视觉能力，而不重新引入逻辑槽位。
+巨舰仍只使用一个动态接触中心，但可以根据自身船宽生成两条相邻跳板，位置为 `contactY ± offset`；两个点必须落在旗舰可接触边界内。这样保留巨舰多人同时登船的视觉能力，同时不重新引入逻辑槽位。
 
 ### 7. 海盗出生和登船路径
 
