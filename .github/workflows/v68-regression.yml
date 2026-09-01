@@ -1,0 +1,29 @@
+name: V6.8 Regression
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: |
+          for f in js/*.js; do node --check "$f"; done
+      - name: Run smart berthing regression
+        run: node tests/v6_free_boarding.test.js
+      - name: Run boarding queue regression
+        run: node tests/v6_4_boarding_queue.test.js
+      - name: Run enemy AI regression
+        run: node tests/v6_5_enemy_ai.test.js
+      - name: Run deck combat AI regression
+        run: node tests/v6_6_deck_combat_ai.test.js
+      - name: Run V6.7 crew/no-ranged regression
+        run: node tests/v6_7_crew_no_enemy_ranged.test.js
+      - name: Run V6.8 battle feedback/performance regression
+        run: node tests/v6_8_feedback_perf.test.js
