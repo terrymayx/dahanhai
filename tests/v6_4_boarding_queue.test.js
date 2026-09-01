@@ -7,7 +7,7 @@ const combat = fs.readFileSync('js/20_combat_skills.js','utf8');
 const scene = fs.readFileSync('js/40_scene.js','utf8');
 const index = fs.readFileSync('index.html','utf8');
 
-assert(/V6\.4/.test(index), 'index must publish V6.4');
+assert(/V6\.5/.test(index), 'index must publish V6.5');
 assert(/V6\.4 BOARDING QUEUE START/.test(boarding), 'V6.4 boarding queue helper block missing');
 assert(/function\s+boardingChannelCount/.test(boarding), 'boardingChannelCount missing');
 assert(/function\s+boardingChannelBusy/.test(boarding), 'boardingChannelBusy missing');
@@ -49,4 +49,4 @@ assert(/if\(b\.state==='fight'\)\{b\.ship=null;continue;\}/.test(combat.replace(
 assert(/b\.hp=0/.test(combat), 'unfinished transit boarders must be removed when mother ship sinks');
 assert(/constrem=e\.t\.pir-e\.deployed/.test(scene.replace(/\s+/g,'')), 'undeployed pirates must remain visibly waiting on enemy deck');
 
-console.log('PASS: V6.4 boarding queue regression');
+console.log('PASS: V6.5 preserves V6.4 boarding queue regression');
