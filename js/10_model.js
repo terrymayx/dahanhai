@@ -100,12 +100,12 @@ function enemyBowX(e){return e.x-enemyCollider(e).rx;}
 
 /* V6.3 连续接舷扫描：所有候选都是实际 Y 坐标，不存在固定槽位。 */
 function berthingCandidateYs(e){
-  const c=enemyCollider(e),base=clampContactY(e.y,c.ry);
-  const offsets=[0,-40,40,-80,80,-120,120,-160,160,-200,200,-240,240,-280,280];
-  const out=[];
-  for(const off of offsets){
-    const y=clampContactY(base+off,c.ry);
-    if(!out.some(v=>Math.abs(v-y)<1))out.push(y);
+  const c=enemyCollider(e),base=clampContactY(e.y,c.ry),out=[base];
+  for(let d=40;d<=640;d+=40){
+    for(const raw of [base-d,base+d]){
+      const y=clampContactY(raw,c.ry);
+      if(!out.some(v=>Math.abs(v-y)<1))out.push(y);
+    }
   }
   return out;
 }
