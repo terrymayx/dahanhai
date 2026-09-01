@@ -56,7 +56,7 @@ assert(/state==='docked'&&e\.contact/.test(hud.replace(/\s+/g,'')), 'HUD docked 
 
 assert(!/41_collision_visual\.js/.test(index), 'old collision visual patch must not load');
 assert(!/58_berthing_contact_fix\.js/.test(index), 'old berthing patch must not load');
-assert(/V6\.4/.test(index), 'index must publish V6.4');
+assert(/V6\.5/.test(index), 'index must publish V6.5');
 
 assert(/const deployed=_deployBoarderLevel\(e\)/.test(levels));
 assert(/if\(!deployed\)return false/.test(levels));
@@ -147,4 +147,4 @@ for(const y of [330,430,560,690,790]){
   assert(x>=430 && x<=602);
 }
 
-console.log('PASS: V6.4 smart free boarding regression');
+console.log('PASS: V6.5 preserves smart free boarding regression');
