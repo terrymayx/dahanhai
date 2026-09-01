@@ -1,17 +1,26 @@
 function deployBoarder(e){
-  if(!shipsTouchPlayer(e))return false;
-  const useUpper=e.slot==='upper'||(e.slot==='both'&&e.deployed%2===0),slot=useUpper?SLOTS.upper:SLOTS.lower;
+  if(!e||e.state!=='docked'||!e.contact||
+     !Number.isFinite(e.contactX)||!Number.isFinite(e.contactY)||
+     !shipsTouchPlayer(e))return false;
   const bowX=enemyBowX(e)+18;
+  const entryX=Math.min(580,e.contactX-18);
+  const entryY=e.contactY;
   const r=Math.random();let method=r<.58?'plank':r<.82?'swing':'climb';
   const band=e.deployed%2?'#d93636':'#3a3f4a',hp=e.type==='manowar'?52:42;
   if(method==='plank'){
-    g.boarders.push({ship:e,hp,max:hp,band,x:bowX,y:e.y+rand(-14,14),i:0,atkT:rand(.3,.7),anim:0,method,state:'plank',wp:[{x:612,y:slot.plankY},{x:565,y:slot.plankY+rand(-45,45)}]});
-    splashFx(640,slot.plankY,.5);
+    const landing={x:entryX,y:entryY+rand(-26,26)};
+    g.boarders.push({ship:e,hp,max:hp,band,x:bowX,y:e.y+rand(-14,14),i:0,atkT:rand(.3,.7),anim:0,
+      method:'plank',state:'plank',wp:[{x:e.contactX+12,y:e.contactY},{x:landing.x,y:landing.y}]});
+    splashFx(e.contactX,e.contactY,.5);
   }else if(method==='swing'){
-    const anchor={x:bowX+10,y:e.y+(useUpper?-28:28)},to={x:565,y:slot.plankY+rand(-70,70)};
-    g.boarders.push({ship:e,hp,max:hp,band,x:anchor.x,y:anchor.y+28,atkT:rand(.3,.7),anim:0,method,state:'swing',swingT:0,dur:.9,anchor,from:{x:anchor.x,y:anchor.y+28},to});
+    const anchor={x:bowX+10,y:e.y+rand(-26,26)};
+    const to={x:entryX,y:entryY+rand(-55,55)};
+    g.boarders.push({ship:e,hp,max:hp,band,x:anchor.x,y:anchor.y+28,atkT:rand(.3,.7),anim:0,
+      method:'swing',state:'swing',swingT:0,dur:.9,anchor,from:{x:anchor.x,y:anchor.y+28},to});
   }else{
-    g.boarders.push({ship:e,hp,max:hp,band,x:bowX,y:e.y+(useUpper?-32:32),atkT:rand(.3,.7),anim:0,method,state:'climb',climbT:0,to:{x:566,y:slot.plankY+rand(-35,35)}});
+    const to={x:entryX,y:entryY+rand(-32,32)};
+    g.boarders.push({ship:e,hp,max:hp,band,x:bowX,y:e.y+rand(-24,24),atkT:rand(.3,.7),anim:0,
+      method:'climb',state:'climb',climbT:0,to});
   }
   return true;
 }
@@ -42,6 +51,21 @@ function moveCaptain(c,tgt,dt){
   if(!tgt){c.x+=(c.homeX-c.x)*Math.min(1,dt*2.5);c.y+=(c.homeY-c.y)*Math.min(1,dt*2.5);return;}
   const d=dist(c.x,c.y,tgt.x,tgt.y);if(d>c.rg&&d<250){c.x+=(tgt.x-c.x)/d*82*dt;c.y+=(tgt.y-c.y)/d*82*dt;}
 }
+function findLocalBerthingOffset(e){
+  const c=enemyCollider(e);
+  let push=0;
+  for(const o of g.enemies){
+    if(o===e||o.gone||o.state==='sink'||o.t.role==='ranged')continue;
+    const oc=enemyCollider(o);
+    const dx=Math.abs(o.x-e.x);
+    const minDx=c.rx+oc.rx+40;
+    if(dx>minDx)continue;
+    const dy=e.y-o.y;
+    const need=c.ry+oc.ry+12-Math.abs(dy);
+    if(need>0)push+=(dy>=0?1:-1)*Math.min(need,55);
+  }
+  return clamp(push,-70,70);
+}
 function update(dt){
   g.time+=dt;g.scroll+=60*dt;
   for(const f of g.foam){f.y+=f.vy*dt;f.x+=f.vx*dt;f.life-=dt;}g.foam=g.foam.filter(f=>f.life>0);g.foamT-=dt;
@@ -51,7 +75,8 @@ function update(dt){
   if(g.spawnQueue.length){g.spawnT-=dt;if(g.spawnT<=0){const q=g.spawnQueue.shift();spawnEnemy(q.type);g.spawnT=g.spawnQueue.length?g.spawnQueue[0].delay:0;}}
 
   for(const e of g.enemies){
-    e.flash=Math.max(0,e.flash-dt);if(e.state==='sink'){e.sinkT+=dt;continue;}
+    e.flash=Math.max(0,e.flash-dt);
+    if(e.state==='sink'){if(e.contact)clearEnemyContact(e);e.sinkT+=dt;continue;}
     e.rot=0;
     if(e.t.role==='ranged'){
       if(e.state==='approach'){e.x=Math.max(e.rangeX,e.x-e.t.sp*SPD*dt);e.y+=(e.rangeY-e.y)*Math.min(1,dt*.65);if(e.x<=e.rangeX+1)e.state='ranged';}
@@ -60,38 +85,48 @@ function update(dt){
       continue;
     }
     if(e.state==='approach'||e.state==='hold'){
-      const nearX=1120+100*e.s;
-      if(e.x>nearX){
-        e.x-=e.t.sp*SPD*dt;
-        if(e.x<nearX)e.x=nearX;
-        e.state='approach';
-      }else{
-        const slot=e.slot||chooseDockSlot(e);
-        if(slot){e.slot=slot;e.state='closing';e.contact=false;}
-        else{e.state='hold';e.x-=e.t.sp*.14*SPD*dt;e.y+=Math.sin(g.time+e.ph)*4*dt;}
-      }
+      const p=contactPointForEnemy(e),c=enemyCollider(e);
+      const enterX=p.x+c.rx+470;
+      e.x-=e.t.sp*SPD*dt;
+      if(e.x<=enterX)e.state='closing';
     }else if(e.state==='closing'){
-      const ty=slotTargetY(e),targetX=dockCX(e),gap=Math.max(0,e.x-targetX);
-      const forwardFactor=clamp(gap/420,.12,.62);
-      e.x=Math.max(targetX,e.x-e.t.sp*forwardFactor*SPD*dt);
-      const lateralSpeed=Math.max(32,e.t.sp*.42)*SPD;
-      e.y+=clamp(ty-e.y,-lateralSpeed*dt,lateralSpeed*dt);
-      constrainEnemyOutsidePlayer(e);
-      if(shipsTouchPlayer(e)){
-        e.x=dockCX(e);e.y=ty;e.state='docked';e.contact=true;e.deployT=.45;g.warnT=3.5;sfx.alarm();
+      const avoid=findLocalBerthingOffset(e);
+      const lateralSpeed=Math.max(28,e.t.sp*.36)*SPD;
+      e.y=clamp(e.y+clamp(avoid,-lateralSpeed*dt,lateralSpeed*dt),245,875);
+
+      const p=contactPointForEnemy(e),c=enemyCollider(e);
+      const targetX=p.x+c.rx-PLAYER_COLLIDER.skin;
+      const gap=Math.max(0,e.x-targetX);
+      const speed=Math.max(28,e.t.sp*clamp(gap/360,.30,.72))*SPD;
+      e.x=Math.max(targetX,e.x-speed*dt);
+
+      if(lockEnemyContact(e)){
+        e.state='docked';e.deployT=.18;e.clearT=0;
+        g.warnT=3.5;sfx.alarm();
       }
     }else if(e.state==='docked'){
-      e.rot=0;e.x=dockCX(e);e.y=slotTargetY(e);e.contact=shipsTouchPlayer(e);
-      if(!e.contact){e.state='closing';continue;}
+      e.rot=0;
+      if(!e.contact||!Number.isFinite(e.contactX)||!Number.isFinite(e.contactY)){
+        clearEnemyContact(e);e.state='closing';continue;
+      }
+      const c=enemyCollider(e);
+      e.x=e.contactX+c.rx-PLAYER_COLLIDER.skin;
+      e.y+=(e.contactY-e.y)*Math.min(1,dt*4);
+
       if(e.deployed<e.t.pir){
         e.deployT-=dt*SPD;
         if(e.deployT<=0){
           e.deployT=e.type==='manowar'?.72:.95;
           if(deployBoarder(e))e.deployed++;
         }
-      }else if(!g.boarders.some(b=>b.ship===e&&b.hp>0)){e.clearT+=dt;if(e.clearT>1.0)e.state='retreat';}else e.clearT=0;
+      }else if(!g.boarders.some(b=>b.ship===e&&b.hp>0)){
+        e.clearT+=dt;
+        if(e.clearT>1.0){clearEnemyContact(e);e.state='retreat';}
+      }else e.clearT=0;
     }else if(e.state==='retreat'){
-      e.contact=false;e.rot=0;e.x+=e.t.sp*.9*dt;e.y+=(560-e.y)*Math.min(1,dt*.35);if(e.x>2180)e.gone=true;
+      clearEnemyContact(e);e.rot=0;
+      e.x+=e.t.sp*.9*dt;
+      if(e.x>2180)e.gone=true;
     }
   }
 
