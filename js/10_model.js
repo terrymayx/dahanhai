@@ -59,6 +59,7 @@ function spawnEnemy(type){
   const e={type,t,s:t.s,x:2070,y:rand(250,870),hp:t.hp,max:t.hp,state:'approach',rot:0,
     deployed:0,deployT:0,shootT:rand(2.4,4),flash:0,ph:rand(0,6.28),sinkT:0,clearT:0,contact:false,
     contactX:null,contactY:null,contactNormalX:1,contactNormalY:0,
+    targetContactY:null,berthRepathT:0,berthWaitT:0,berthStallT:0,berthLastX:null,
     rangeX:rand(1260,1510),rangeY:rand(300,820),gone:false};
   g.enemies.push(e);
 }
@@ -85,16 +86,59 @@ function clampContactY(y,enemyRy=0){
   return clamp(y,PLAYER_COLLIDER.cy-PLAYER_COLLIDER.ry+pad,
                  PLAYER_COLLIDER.cy+PLAYER_COLLIDER.ry-pad);
 }
-function contactPointForEnemy(e){
+function contactPointAtY(e,y){
   const c=enemyCollider(e);
-  const y=clampContactY(e.y,c.ry);
-  const x=playerHullRightX(y);
+  const cy=clampContactY(y,c.ry);
+  const x=playerHullRightX(cy);
   const nx=Math.max(1e-6,(x-PLAYER_COLLIDER.cx)/(PLAYER_COLLIDER.rx*PLAYER_COLLIDER.rx));
-  const ny=(y-PLAYER_COLLIDER.cy)/(PLAYER_COLLIDER.ry*PLAYER_COLLIDER.ry);
+  const ny=(cy-PLAYER_COLLIDER.cy)/(PLAYER_COLLIDER.ry*PLAYER_COLLIDER.ry);
   const mag=Math.hypot(nx,ny)||1;
-  return {x,y,normalX:nx/mag,normalY:ny/mag};
+  return {x,y:cy,normalX:nx/mag,normalY:ny/mag};
 }
+function contactPointForEnemy(e){return contactPointAtY(e,e.y);}
 function enemyBowX(e){return e.x-enemyCollider(e).rx;}
+
+/* V6.3 连续接舷扫描：所有候选都是实际 Y 坐标，不存在固定槽位。 */
+function berthingCandidateYs(e){
+  const c=enemyCollider(e),base=clampContactY(e.y,c.ry);
+  const offsets=[0,-40,40,-80,80,-120,120,-160,160,-200,200,-240,240,-280,280];
+  const out=[];
+  for(const off of offsets){
+    const y=clampContactY(base+off,c.ry);
+    if(!out.some(v=>Math.abs(v-y)<1))out.push(y);
+  }
+  return out;
+}
+function berthingTargetBlocked(e,y){
+  if(!Number.isFinite(y))return true;
+  const c=enemyCollider(e);
+  for(const o of g.enemies){
+    if(o===e||o.gone||o.state==='sink'||o.t.role==='ranged')continue;
+    const oc=enemyCollider(o);
+    let oy=null;
+    if(o.state==='docked'&&o.contact)oy=Number.isFinite(o.contactY)?o.contactY:o.y;
+    else if(o.state==='closing'&&Number.isFinite(o.targetContactY)&&o.x<=e.x+10)oy=o.targetContactY;
+    else continue;
+    if(Math.abs(y-oy)<c.ry+oc.ry+16)return true;
+  }
+  return false;
+}
+function findBestBerthingY(e){
+  const candidates=berthingCandidateYs(e);
+  let best=null,bestScore=Infinity;
+  for(const y of candidates){
+    if(berthingTargetBlocked(e,y))continue;
+    const score=Math.abs(y-e.y);
+    if(score<bestScore){best=y;bestScore=score;}
+  }
+  return best;
+}
+function assignBerthingTarget(e,force=false){
+  if(!force&&Number.isFinite(e.targetContactY)&&!berthingTargetBlocked(e,e.targetContactY))return e.targetContactY;
+  e.targetContactY=findBestBerthingY(e);
+  e.berthRepathT=Number.isFinite(e.targetContactY)?.65:.45;
+  return e.targetContactY;
+}
 function shipsTouchPlayer(e){
   if(!e||e.state==='sink'||e.gone)return false;
   const p=contactPointForEnemy(e);
@@ -114,13 +158,15 @@ function lockEnemyContact(e){
     if(overlapX&&overlapY)return false;
   }
   e.x=targetX;
-  e.contact=true;e.contactX=p.x;e.contactY=p.y;
+  e.contact=true;e.contactX=p.x;e.contactY=p.y;e.targetContactY=p.y;
   e.contactNormalX=p.normalX;e.contactNormalY=p.normalY;
+  e.berthWaitT=0;e.berthStallT=0;e.berthLastX=e.x;
   return true;
 }
 function clearEnemyContact(e){
   e.contact=false;e.contactX=null;e.contactY=null;
   e.contactNormalX=1;e.contactNormalY=0;
+  e.targetContactY=null;e.berthRepathT=0;e.berthWaitT=0;e.berthStallT=0;e.berthLastX=null;
 }
 function constrainEnemyOutsidePlayer(e){
   if(!e||e.state==='sink'||e.gone||e.t.role==='ranged'||e.state==='docked')return;
