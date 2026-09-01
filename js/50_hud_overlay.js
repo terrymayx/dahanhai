@@ -5,14 +5,12 @@ function drawHUD(){
   if(warn){
     ctx.fillStyle='#6e1f1f';ctx.beginPath();ctx.moveTo(690,42);ctx.lineTo(662,60);ctx.lineTo(690,78);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(1230,42);ctx.lineTo(1258,60);ctx.lineTo(1230,78);ctx.closePath();ctx.fill();
     rr(690,26,540,68,16);ctx.fillStyle='#a83232';ctx.fill();ctx.strokeStyle='#6e1f1f';ctx.lineWidth=5;ctx.stroke();rr(702,36,516,48,10);ctx.fillStyle='#c04848';ctx.fill();drawSkull(740,60,1.1);
-    const docked=g.enemies.filter(e=>e.state==='docked').length;txt('接舷战！'+docked+' 艘贴帮 · '+g.boarders.length+' 名海盗',980,70,32,'#ffffff','#5a1818',5);
+    const docked=g.enemies.filter(e=>e.state==='docked'&&e.contact).length;txt('接舷战！'+docked+' 艘贴帮 · '+g.boarders.length+' 名海盗',980,70,32,'#ffffff','#5a1818',5);
   }else{
     woodPanel(790,30,340,64,14);const remain=g.enemies.length+g.spawnQueue.length+g.boarders.length;txt('第 '+Math.max(1,g.wave)+'/'+WAVE_TOTAL+' 波 · 剩余 '+remain,960,72,30,'#4a2c10');
   }
   circle(BTN_PAUSE.x,BTN_PAUSE.y,BTN_PAUSE.r);ctx.fillStyle='#8a5a2b';ctx.fill();ctx.strokeStyle='#5f3a17';ctx.lineWidth=4;ctx.stroke();ctx.fillStyle='#ffffff';ctx.fillRect(BTN_PAUSE.x-13,BTN_PAUSE.y-12,8,24);ctx.fillRect(BTN_PAUSE.x+5,BTN_PAUSE.y-12,8,24);
   hpBar(350,182,230,28,g.player.hp/g.player.max,'#5a2020');txt('我方旗舰',598,206,24,'#ffffff','#3a2c1a',4,'left');
-  // 接舷槽位只做状态提示，不做额外压力条
-  const up=slotBlocked('upper',null),lo=slotBlocked('lower',null);txt('上舷 '+(up?'接舷':'空闲'),312,145,18,up?'#ff8a7e':'#d7f3ff','#3a2c1a',3,'left');txt('下舷 '+(lo?'接舷':'空闲'),312,168,18,lo?'#ff8a7e':'#d7f3ff','#3a2c1a',3,'left');
   for(let i=0;i<g.sk.length;i++){
     const s=g.sk[i],crew=g.crew.find(c=>c.id===s.crew),spec=skillSpec(i),R=s.r;
     if(s.cd<=0&&crew.alive){ctx.globalAlpha=.25+.15*Math.sin(g.time*6);circle(s.x,s.y,R+10);ctx.fillStyle='#ffd94d';ctx.fill();ctx.globalAlpha=1;}
@@ -43,13 +41,13 @@ function bigButton(b,label,sub){
 }
 function overlay(){ ctx.fillStyle='rgba(6,20,32,.74)'; ctx.fillRect(0,0,W,H); }
 function drawMenu(){
-  overlay();txt('大 航 海 时 代',960,280,110,'#ffffff','#5f3a17',14);txt('V5.0 · 连续海战系统',960,365,38,'#ffd23e','#5f3a17',6);
+  overlay();txt('大 航 海 时 代',960,280,110,'#ffffff','#5f3a17',14);txt('V6.0 · 自由接舷系统',960,365,38,'#ffd23e','#5f3a17',6);
   const lines=['🏴‍☠️ 炮舰会停在远处持续开火；突击艇和巨舰会尝试接舷',
-    '⚓ 上舷 / 下舷是两个独立接舷位，巨舰会同时封锁双舷',
-    '🪝 海盗会走跳板、荡索或翻舷；接舷时远处炮战不会停止',
+    '⚓ 敌船可在旗舰右侧任意位置真实贴帮，哪里碰到就在哪里接舷',
+    '🪝 多艘船能否同时靠上来只由船体碰撞和实际空间决定',
     '⚔️ 同一组三个技能会随战况切换：齐射↔火药桶 / 箭雨↔速射 / 号令↔挥砍',
     '🎯 点击敌船可集火；守住 '+WAVE_TOTAL+' 波进攻，别让旗舰沉没！'];
-  lines.forEach((l,i)=>txt(l,960,445+i*48,25,'#e8f4fb','#0e3a52',5));bigButton(BTN_START,'开始连续海战！');txt('基于三个半成品重塑 · 鼠标 / 触摸 · 横屏体验最佳',960,835,20,'#9cc4d8',null,0);
+  lines.forEach((l,i)=>txt(l,960,445+i*48,25,'#e8f4fb','#0e3a52',5));bigButton(BTN_START,'开始连续海战！');txt('自由接舷 · 鼠标 / 触摸 · 横屏体验最佳',960,835,20,'#9cc4d8',null,0);
 }
 
 function drawEnd(win){
