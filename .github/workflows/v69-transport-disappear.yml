@@ -12,5 +12,5 @@ jobs:
           node-version: '22'
       - name: Check JavaScript syntax
         run: for f in js/*.js; do node --check "$f"; done
-      - name: Run transport disappear regression
-        run: node tests/v6_9_side_retreat.test.js
+      - name: Run full regression suite
+        run: for t in tests/*.test.js; do node "$t"; done
