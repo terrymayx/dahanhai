@@ -1,8 +1,8 @@
 /* ================= 数据 ================= */
 const TYPES={
-  sloop  :{s:0.62,hull:'#8a3b2e',deck:'#a97a55',hp:48 ,sp:118,pir:3,gold:65 ,role:'board', shoot:false,name:'突击艇',colL:190,colB:112},
-  gunship:{s:0.85,hull:'#3f4450',deck:'#7d6a55',hp:105,sp:62 ,pir:0,gold:120,role:'ranged',shoot:true ,name:'炮舰',colL:205,colB:122},
-  manowar:{s:1.05,hull:'#2e7d4f',deck:'#7fa06a',hp:230,sp:42 ,pir:7,gold:220,role:'heavy', shoot:false,name:'巨舰',colL:225,colB:136},
+  sloop  :{s:0.52,hull:'#8a3b2e',deck:'#a97a55',hp:48 ,sp:118,pir:3,gold:65 ,role:'board', shoot:false,name:'突击艇',colL:190,colB:112},
+  gunship:{s:0.72,hull:'#3f4450',deck:'#7d6a55',hp:105,sp:62 ,pir:0,gold:120,role:'ranged',shoot:true ,name:'炮舰',colL:205,colB:122},
+  manowar:{s:0.88,hull:'#2e7d4f',deck:'#7fa06a',hp:230,sp:42 ,pir:7,gold:220,role:'heavy', shoot:false,name:'巨舰',colL:225,colB:136},
 };
 const WAVES=[
   ['sloop','gunship','sloop'],
