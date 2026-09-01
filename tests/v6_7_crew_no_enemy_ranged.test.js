@@ -3,20 +3,32 @@ const assert=require('assert');
 const vm=require('vm');
 
 const model=fs.readFileSync('js/10_model.js','utf8');
-const boarding=fs.readFileSync('js/21_boarding_update.js','utf8');
-const deckAI=fs.readFileSync('js/22_deck_combat_ai.js','utf8');
-const art=fs.readFileSync('js/30_art_units.js','utf8');
+const v67=fs.readFileSync('js/23_v67_crew_no_ranged.js','utf8');
 const index=fs.readFileSync('index.html','utf8');
 
 assert(/V6\.7/.test(index),'index must publish V6.7');
-assert(/ENEMY_RANGED_FIRE\s*=\s*false/.test(model),'enemy ranged fire must be globally disabled');
-assert(/gunship:\{s:0\.56[\s\S]*?shoot:false/.test(model.replace(/\s+/g,'')),'gunship must not be marked as a firing ship');
-assert(/ENEMY_RANGED_FIRE&&/.test(boarding.replace(/\s+/g,'')),'enemy projectile creation must be gated by ENEMY_RANGED_FIRE');
-assert(/if\(!ENEMY_RANGED_FIRE\)g\.eballs\.length=0/.test(boarding.replace(/\s+/g,'')),'disabled enemy ranged fire must clear enemy cannonballs before they can hit the flagship');
+assert(/js\/23_v67_crew_no_ranged\.js/.test(index),'V6.7 battle layer must be loaded');
+assert(/V6\.7 CREW \+ NO ENEMY RANGED FIRE START/.test(v67),'V6.7 battle layer marker missing');
+assert(/TYPES\.gunship\.shoot=false/.test(v67.replace(/\s+/g,'')),'gunship must be marked non-firing in V6.7');
+assert(/eballs\.push=function\(\)/.test(v67.replace(/\s+/g,'')),'V6.7 must suppress enemy cannonball creation at the array entry point');
+assert(/state\.eballs\.length=0/.test(v67.replace(/\s+/g,'')),'V6.7 must clear inherited enemy cannonballs');
+assert(/startsWith\('sailor'\)/.test(v67),'V6.7 must explicitly classify/draw sailors');
 
-const ctx={console,Math,FAST:false,rand:(a,b)=>(a+b)/2,clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),window:{}};
+const ctx={
+  console,Math,FAST:false,
+  rand:(a,b)=>(a+b)/2,
+  clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),
+  window:{},
+  drawCrew:function(){},drawMenu:function(){},
+  figureBody:function(){},figureHead:function(){},circle:function(){},
+  ctx:{save(){},restore(){},translate(){},rotate(){},beginPath(){},moveTo(){},quadraticCurveTo(){},stroke(){},fill(){},lineTo(){},closePath(){},set fillStyle(v){},set strokeStyle(v){},set lineWidth(v){},set lineCap(v){}},
+  overlay:function(){},txt:function(){},bigButton:function(){},BTN_START:{},
+};
 vm.createContext(ctx);
 vm.runInContext(model,ctx);
+ctx.crewCombatProfile=(c)=>({min:18,preferred:34,speed:90});
+vm.runInContext(v67,ctx);
+
 const crew=vm.runInContext('CREW_DEF.map(c=>({...c}))',ctx);
 assert.strictEqual(crew.length,8,'V6.7 must field eight friendly crew members');
 const ids=crew.map(c=>c.id);
@@ -29,7 +41,15 @@ for(const s of sailors){
   assert(s.dmg>=15,'sailors need real melee damage');
 }
 
-assert(/startsWith\('sailor'\)/.test(deckAI),'V6.6 deck AI must explicitly classify sailors as melee crew');
-assert(/startsWith\('sailor'\)/.test(art),'sailors need their own crew artwork instead of rendering as drummers');
+const state=ctx.newGame();
+assert.strictEqual(state.crew.length,8,'new games must start with all eight crew');
+const before=state.eballs.length;
+const pushed=state.eballs.push({x:1000,y:500,vx:-350,vy:0,life:4});
+assert.strictEqual(state.eballs.length,before,'enemy cannonball push must be suppressed');
+assert.strictEqual(pushed,before,'suppressed enemy cannonball push must report unchanged length');
+assert.strictEqual(ctx.TYPES?ctx.TYPES.gunship.shoot:vm.runInContext('TYPES.gunship.shoot',ctx),false,'gunship firing flag must be false');
+
+const sailorProfile=ctx.crewCombatProfile({id:'sailor1'});
+assert(sailorProfile.preferred<=45&&sailorProfile.min<=25,'sailors must use melee deck-combat spacing');
 
 console.log('PASS: V6.7 eight crew + no enemy ranged flagship attack regression');
