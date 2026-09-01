@@ -1,16 +1,17 @@
 function deployBoarder(e){
   if(!shipsTouchPlayer(e))return false;
   const useUpper=e.slot==='upper'||(e.slot==='both'&&e.deployed%2===0),slot=useUpper?SLOTS.upper:SLOTS.lower;
+  const bowX=enemyBowX(e)+18;
   const r=Math.random();let method=r<.58?'plank':r<.82?'swing':'climb';
   const band=e.deployed%2?'#d93636':'#3a3f4a',hp=e.type==='manowar'?52:42;
   if(method==='plank'){
-    g.boarders.push({ship:e,hp,max:hp,band,x:e.x-70*e.s,y:slot.plankY+rand(-14,14),i:0,atkT:rand(.3,.7),anim:0,method,state:'plank',wp:[{x:612,y:slot.plankY},{x:565,y:slot.plankY+rand(-45,45)}]});
+    g.boarders.push({ship:e,hp,max:hp,band,x:bowX,y:e.y+rand(-14,14),i:0,atkT:rand(.3,.7),anim:0,method,state:'plank',wp:[{x:612,y:slot.plankY},{x:565,y:slot.plankY+rand(-45,45)}]});
     splashFx(640,slot.plankY,.5);
   }else if(method==='swing'){
-    const anchor={x:e.x-35*e.s,y:e.y+(useUpper?-145:145)*e.s},to={x:565,y:slot.plankY+rand(-70,70)};
-    g.boarders.push({ship:e,hp,max:hp,band,x:anchor.x,y:anchor.y+40,atkT:rand(.3,.7),anim:0,method,state:'swing',swingT:0,dur:.9,anchor,from:{x:anchor.x,y:anchor.y+40},to});
+    const anchor={x:bowX+10,y:e.y+(useUpper?-28:28)},to={x:565,y:slot.plankY+rand(-70,70)};
+    g.boarders.push({ship:e,hp,max:hp,band,x:anchor.x,y:anchor.y+28,atkT:rand(.3,.7),anim:0,method,state:'swing',swingT:0,dur:.9,anchor,from:{x:anchor.x,y:anchor.y+28},to});
   }else{
-    g.boarders.push({ship:e,hp,max:hp,band,x:615,y:slot.plankY+(useUpper?65:-65),atkT:rand(.3,.7),anim:0,method,state:'climb',climbT:0,to:{x:566,y:slot.plankY+rand(-35,35)}});
+    g.boarders.push({ship:e,hp,max:hp,band,x:bowX,y:e.y+(useUpper?-32:32),atkT:rand(.3,.7),anim:0,method,state:'climb',climbT:0,to:{x:566,y:slot.plankY+rand(-35,35)}});
   }
   return true;
 }
@@ -25,7 +26,7 @@ function updateBoarder(b,dt){
     if(p>=1)b.state='fight';return;
   }
   if(b.state==='climb'){
-    b.climbT+=dt;const p=clamp(b.climbT/.75,0,1);b.x=615+(b.to.x-615)*p;b.y=b.y+(b.to.y-b.y)*Math.min(1,dt*5);
+    b.climbT+=dt;const p=clamp(b.climbT/.75,0,1);b.x=b.x+(b.to.x-b.x)*Math.min(1,dt*5);b.y=b.y+(b.to.y-b.y)*Math.min(1,dt*5);
     if(p>=1)b.state='fight';return;
   }
   let tgt=null,best=1e9;for(const c of g.crew)if(c.alive){const d=dist(b.x,b.y,c.x,c.y);if(d<best){best=d;tgt=c;}}
@@ -51,6 +52,7 @@ function update(dt){
 
   for(const e of g.enemies){
     e.flash=Math.max(0,e.flash-dt);if(e.state==='sink'){e.sinkT+=dt;continue;}
+    e.rot=0;
     if(e.t.role==='ranged'){
       if(e.state==='approach'){e.x=Math.max(e.rangeX,e.x-e.t.sp*SPD*dt);e.y+=(e.rangeY-e.y)*Math.min(1,dt*.65);if(e.x<=e.rangeX+1)e.state='ranged';}
       else if(e.state==='ranged'){e.x+=(e.rangeX-e.x)*Math.min(1,dt*.8);e.y+=(e.rangeY+Math.sin(g.time*.7+e.ph)*65-e.y)*Math.min(1,dt*.7);}
@@ -58,24 +60,28 @@ function update(dt){
       continue;
     }
     if(e.state==='approach'||e.state==='hold'){
-      const waitX=1040+120*e.s;if(e.x>waitX){e.x=Math.max(waitX,e.x-e.t.sp*SPD*dt);e.state='approach';}
-      else{const slot=chooseDockSlot(e);if(slot){e.slot=slot;e.state='turning';e.turnT=0;e.contact=false;}else{e.state='hold';e.y+=Math.sin(g.time+e.ph)*6*dt;}}
-    }else if(e.state==='turning'){
-      e.turnT=Math.min(1,e.turnT+dt/.9);e.rot=e.turnT*Math.PI/2;
-      const ty=slotTargetY(e),stageX=dockCX(e)+150+45*e.s;
-      e.x+=(stageX-e.x)*Math.min(1,dt*2.4);e.y+=(ty-e.y)*Math.min(1,dt*3);
-      if(e.turnT>=1){e.state='closing';e.contact=false;}
+      const nearX=1120+100*e.s;
+      if(e.x>nearX){
+        e.x-=e.t.sp*SPD*dt;
+        if(e.x<nearX)e.x=nearX;
+        e.state='approach';
+      }else{
+        const slot=e.slot||chooseDockSlot(e);
+        if(slot){e.slot=slot;e.state='closing';e.contact=false;}
+        else{e.state='hold';e.x-=e.t.sp*.14*SPD*dt;e.y+=Math.sin(g.time+e.ph)*4*dt;}
+      }
     }else if(e.state==='closing'){
-      const ty=slotTargetY(e),targetX=dockCX(e);
-      e.y+=(ty-e.y)*Math.min(1,dt*3.2);
-      const speed=e.t.sp*.42*SPD;
-      e.x=Math.max(targetX,e.x-speed*dt);
+      const ty=slotTargetY(e),targetX=dockCX(e),gap=Math.max(0,e.x-targetX);
+      const forwardFactor=clamp(gap/420,.12,.62);
+      e.x=Math.max(targetX,e.x-e.t.sp*forwardFactor*SPD*dt);
+      const lateralSpeed=Math.max(32,e.t.sp*.42)*SPD;
+      e.y+=clamp(ty-e.y,-lateralSpeed*dt,lateralSpeed*dt);
       constrainEnemyOutsidePlayer(e);
       if(shipsTouchPlayer(e)){
         e.x=dockCX(e);e.y=ty;e.state='docked';e.contact=true;e.deployT=.45;g.warnT=3.5;sfx.alarm();
       }
     }else if(e.state==='docked'){
-      e.x=dockCX(e);e.y=slotTargetY(e);e.contact=shipsTouchPlayer(e);
+      e.rot=0;e.x=dockCX(e);e.y=slotTargetY(e);e.contact=shipsTouchPlayer(e);
       if(!e.contact){e.state='closing';continue;}
       if(e.deployed<e.t.pir){
         e.deployT-=dt*SPD;
@@ -85,7 +91,7 @@ function update(dt){
         }
       }else if(!g.boarders.some(b=>b.ship===e&&b.hp>0)){e.clearT+=dt;if(e.clearT>1.0)e.state='retreat';}else e.clearT=0;
     }else if(e.state==='retreat'){
-      e.contact=false;e.rot=Math.max(0,e.rot-dt*1.5);e.x+=e.t.sp*.9*dt;e.y+=(560-e.y)*Math.min(1,dt*.35);if(e.x>2180)e.gone=true;
+      e.contact=false;e.rot=0;e.x+=e.t.sp*.9*dt;e.y+=(560-e.y)*Math.min(1,dt*.35);if(e.x>2180)e.gone=true;
     }
   }
 
