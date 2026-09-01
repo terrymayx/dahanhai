@@ -19,6 +19,7 @@ const ctx={
   rand:(a,b)=>(a+b)/2,
   clamp:(v,a,b)=>Math.max(a,Math.min(b,v)),
   window:{},
+  update:function(){},
   drawCrew:function(){},drawMenu:function(){},
   figureBody:function(){},figureHead:function(){},circle:function(){},
   ctx:{save(){},restore(){},translate(){},rotate(){},beginPath(){},moveTo(){},quadraticCurveTo(){},stroke(){},fill(){},lineTo(){},closePath(){},set fillStyle(v){},set strokeStyle(v){},set lineWidth(v){},set lineCap(v){}},
@@ -41,13 +42,13 @@ for(const s of sailors){
   assert(s.dmg>=15,'sailors need real melee damage');
 }
 
-const state=ctx.newGame();
+const state=vm.runInContext('newGame()',ctx);
 assert.strictEqual(state.crew.length,8,'new games must start with all eight crew');
 const before=state.eballs.length;
 const pushed=state.eballs.push({x:1000,y:500,vx:-350,vy:0,life:4});
 assert.strictEqual(state.eballs.length,before,'enemy cannonball push must be suppressed');
 assert.strictEqual(pushed,before,'suppressed enemy cannonball push must report unchanged length');
-assert.strictEqual(ctx.TYPES?ctx.TYPES.gunship.shoot:vm.runInContext('TYPES.gunship.shoot',ctx),false,'gunship firing flag must be false');
+assert.strictEqual(vm.runInContext('TYPES.gunship.shoot',ctx),false,'gunship firing flag must be false');
 
 const sailorProfile=ctx.crewCombatProfile({id:'sailor1'});
 assert(sailorProfile.preferred<=45&&sailorProfile.min<=25,'sailors must use melee deck-combat spacing');
