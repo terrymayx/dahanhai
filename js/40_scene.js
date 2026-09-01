@@ -75,7 +75,6 @@ function drawPlayerShip(){
 }
 function drawEnemyShip(e){
   const s=e.s;
-  // 航迹（转向靠帮后淡出）
   const wakeA=Math.max(0,1-e.rot/(Math.PI/2));
   if(wakeA>0){
     ctx.globalAlpha=wakeA;
@@ -94,35 +93,30 @@ function drawEnemyShip(e){
   ctx.fillStyle=e.t.deck; ctx.strokeStyle='rgba(0,0,0,.33)'; ctx.lineWidth=3; ctx.fill(E_DECK); ctx.stroke(E_DECK);
   ctx.save(); ctx.clip(E_DECK); ctx.strokeStyle='rgba(0,0,0,.2)'; ctx.lineWidth=4; ctx.beginPath();
   for(const y of [-52,0,52]){ ctx.moveTo(-215,y); ctx.lineTo(205,y); } ctx.stroke(); ctx.restore();
-  if(e.type==='manowar'){ // 鲨鱼齿
+  if(e.type==='manowar'){
     ctx.fillStyle='rgba(255,255,255,.95)'; ctx.beginPath();
     ctx.moveTo(-185,-44); ctx.lineTo(-214,-30); ctx.lineTo(-185,-18); ctx.closePath();
     ctx.moveTo(-192,-8); ctx.lineTo(-222,2); ctx.lineTo(-192,12); ctx.closePath();
     ctx.moveTo(-185,32); ctx.lineTo(-212,46); ctx.lineTo(-185,56); ctx.closePath(); ctx.fill(); }
-  // 卷帆+骷髅
   rr(-95,-16,190,32,15); ctx.fillStyle='#26262c'; ctx.fill(); ctx.strokeStyle='#101014'; ctx.lineWidth=3; ctx.stroke();
   ctx.beginPath(); for(const x of [-55,0,55]){ ctx.moveTo(x,-16); ctx.lineTo(x,16);} ctx.stroke();
   drawSkull(-45,0,1.05);
   circle(0,0,11); ctx.fillStyle='#5a4326'; ctx.fill(); ctx.strokeStyle='#3a2a16'; ctx.lineWidth=3; ctx.stroke();
-  // 旗
   circle(212,0,6); ctx.fillStyle='#2a2a2a'; ctx.fill();
   ctx.fillStyle='#16161c'; ctx.strokeStyle='#000'; ctx.lineWidth=2;
   const fw=Math.sin(g.time*3+e.ph)*5;
   ctx.beginPath(); ctx.moveTo(216,-16); ctx.bezierCurveTo(244,-28,270,-24+fw,288,-10);
   ctx.lineTo(288,24); ctx.bezierCurveTo(264,12,240,10,216,22); ctx.closePath(); ctx.fill(); ctx.stroke();
   drawSkull(252,4,.85);
-  // 舷炮（靠帮后收起）
   if(e.t.shoot&&e.rot<0.6){ drawCannon(-95,-62,.9,true);
     if(e.flash>0){ ctx.save(); ctx.translate(-95-178*.9,-62); ctx.scale(.8,.8);
       ctx.fillStyle='#ff9a2e'; ctx.fill(SPARK); ctx.fillStyle='#ffd23e'; ctx.scale(.5,.5); ctx.fill(SPARK); ctx.restore(); } }
-  // 船上剩余海盗
   const slots=[[-40,-70],[30,72],[-90,40],[40,-20]];
   const rem=e.t.pir-e.deployed;
   for(let i=0;i<rem&&i<4;i++){ const p=slots[i];
     figureBody(p[0],p[1],'#f2f2f2','#3a3f4a');
     figureHead(p[0],p[1],'band',i%2?'#3a3f4a':'#d93636'); }
   ctx.restore();
-  // 血条
   if(!sink){
     const rf=e.rot/(Math.PI/2);
     const topOff=(152+(235-152)*rf)*s;
@@ -131,16 +125,34 @@ function drawEnemyShip(e){
   }
 }
 function drawDockedGear(e){
-  const x2=e.x-152*e.s+8;
-  const ys=e.slot==='both'?[SLOTS.upper.plankY,SLOTS.lower.plankY]:[e.slot==='upper'?SLOTS.upper.plankY:SLOTS.lower.plankY];
-  for(const py of ys){
-    const sway=Math.sin(g.time*2+py)*2;ctx.save();ctx.translate((600+x2)/2,py+sway*.3);ctx.rotate(py===SLOTS.upper.plankY?-.05:.06);
-    const len=x2-600+18;rr(-len/2,-13,len,26,6);ctx.fillStyle='#b5793a';ctx.fill();ctx.strokeStyle='#7a4a21';ctx.lineWidth=4;ctx.stroke();
-    ctx.strokeStyle='#8a5a2b';ctx.lineWidth=3;ctx.beginPath();for(const sx of [-len/2+24,-len/2+48,0,len/2-48,len/2-24]){ctx.moveTo(sx,-13);ctx.lineTo(sx,13);}ctx.stroke();
-    ctx.strokeStyle='#e8d5a8';ctx.lineWidth=3;circle(-len/2+7,0,7);ctx.stroke();circle(len/2-7,0,7);ctx.stroke();ctx.restore();
-    const slot=py===SLOTS.upper.plankY?SLOTS.upper:SLOTS.lower,originY=e.y+(py===SLOTS.upper.plankY?-145:145)*e.s;
-    ctx.strokeStyle='#b98c4f';ctx.lineWidth=5;const sway2=Math.sin(g.time*2+py)*4;ctx.beginPath();ctx.moveTo(e.x-40*e.s,originY);ctx.quadraticCurveTo(690,slot.hookY+sway2,618,slot.hookY);ctx.stroke();
-    ctx.strokeStyle='#6a6a72';ctx.lineWidth=5;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(618,slot.hookY);ctx.quadraticCurveTo(604,slot.hookY+4,604,slot.hookY+14);ctx.stroke();
+  if(!e||e.state!=='docked'||!e.contact||
+     !Number.isFinite(e.contactX)||!Number.isFinite(e.contactY))return;
+
+  const bowX=enemyBowX(e);
+  const enemyDeckX=bowX+Math.max(46,72*e.s);
+  const count=e.type==='manowar'?2:1;
+  const offsets=count===2?[-34,34]:[0];
+  const ec=enemyCollider(e);
+
+  for(const off of offsets){
+    const y=clampContactY(e.contactY+off,ec.ry);
+    const playerX=playerHullRightX(y)-10;
+    const enemyY=e.y+clamp(y-e.y,-48,48);
+    const dx=enemyDeckX-playerX,dy=enemyY-y;
+    const len=Math.max(42,Math.hypot(dx,dy));
+    const ang=Math.atan2(dy,dx);
+
+    ctx.save();ctx.translate((playerX+enemyDeckX)/2,(y+enemyY)/2);ctx.rotate(ang);
+    rr(-len/2,-12,len,24,5);ctx.fillStyle='#b5793a';ctx.fill();
+    ctx.strokeStyle='#7a4a21';ctx.lineWidth=4;ctx.stroke();
+    ctx.strokeStyle='#8a5a2b';ctx.lineWidth=2;ctx.beginPath();
+    for(let x=-len/2+18;x<len/2-8;x+=22){ctx.moveTo(x,-11);ctx.lineTo(x,11);}ctx.stroke();
+    ctx.restore();
+
+    ctx.strokeStyle='#b98c4f';ctx.lineWidth=4;ctx.lineCap='round';ctx.beginPath();
+    ctx.moveTo(enemyDeckX+8,enemyY-16);
+    ctx.quadraticCurveTo((enemyDeckX+playerX)/2,y-28,playerX,y-6);
+    ctx.stroke();
   }
 }
 function drawBoardingRoutes(){
@@ -149,7 +161,8 @@ function drawBoardingRoutes(){
       ctx.strokeStyle='#b98c4f';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(b.anchor.x,b.anchor.y);ctx.lineTo(b.x,b.y-8);ctx.stroke();
       ctx.fillStyle='rgba(0,45,65,.18)';ctx.beginPath();ctx.ellipse(b.to.x,b.to.y+32,24,8,0,0,Math.PI*2);ctx.fill();
     }else if(b.state==='climb'){
-      ctx.strokeStyle='#b98c4f';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(618,b.y-70);ctx.lineTo(b.x,b.y);ctx.stroke();
+      const rx=b.ship&&Number.isFinite(b.ship.contactX)?b.ship.contactX:618;
+      ctx.strokeStyle='#b98c4f';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(rx,b.y-70);ctx.lineTo(b.x,b.y);ctx.stroke();
     }
   }
 }
