@@ -47,6 +47,6 @@ assert.strictEqual(ctx.chooseBoardingChannel(sloop),0,'different enemy ships mus
 
 assert(/if\(b\.state==='fight'\)\{b\.ship=null;continue;\}/.test(combat.replace(/\s+/g,'')), 'fight boarders must remain after mother ship sinks');
 assert(/b\.hp=0/.test(combat), 'unfinished transit boarders must be removed when mother ship sinks');
-assert(/const rem=e\.t\.pir-e\.deployed/.test(scene.replace(/\s+/g,'')), 'undeployed pirates must remain visibly waiting on enemy deck');
+assert(/constrem=e\.t\.pir-e\.deployed/.test(scene.replace(/\s+/g,'')), 'undeployed pirates must remain visibly waiting on enemy deck');
 
 console.log('PASS: V6.4 boarding queue regression');
