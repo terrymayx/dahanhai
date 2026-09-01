@@ -3,7 +3,7 @@ function damageEnemy(e,d,x,y){
   if(!e||e.state==='sink')return;
   e.hp-=d;g.texts.push({x:x??e.x,y:(y??e.y)-60*e.s,str:'-'+Math.round(d),t:.85,color:'#ffd23e',size:26});
   if(e.hp<=0){
-    e.hp=0;e.state='sink';e.sinkT=0;g.gold+=e.t.gold;g.kills++;
+    e.hp=0;clearEnemyContact(e);e.state='sink';e.sinkT=0;g.gold+=e.t.gold;g.kills++;
     if(g.focus===e)g.focus=null;
     g.texts.push({x:e.x,y:e.y-40,str:'+'+e.t.gold,t:1.1,color:'#ffcc33',size:30,coin:true});
     sfx.boom();sfx.coin();boomFx(e.x,e.y,1.4*e.s);splashFx(e.x+120*e.s,e.y,1.6);
