@@ -14,7 +14,7 @@ assert(/function\s+boardingChannelBusy/.test(boarding), 'boardingChannelBusy mis
 assert(/function\s+chooseBoardingChannel/.test(boarding), 'chooseBoardingChannel missing');
 assert(/boardingChannel:channel/.test(boarding), 'transit boarder must record its boarding channel');
 assert(/boardingLaneY:laneY/.test(boarding), 'transit boarder must record its lane Y');
-assert(/if\(channel<0\)return false/.test(boarding.replace(/\s+/g,'')), 'busy channels must block deployment');
+assert(/if\(channel<0\)returnfalse/.test(boarding.replace(/\s+/g,'')), 'busy channels must block deployment');
 assert(/e\.deployT=\.12/.test(boarding), 'busy ship must poll for the next free channel instead of stacking boarders');
 assert(/e\.type==='manowar'&&chooseBoardingChannel\(e\)>=0\?\.16/.test(boarding.replace(/\s+/g,'')), 'manowar must quickly fill its second free channel');
 
