@@ -32,6 +32,7 @@ function drawWake(){
 }
 function drawPlayerShip(){
   drawWake();
+  // 船体
   ctx.fillStyle='#8a5a2b'; ctx.strokeStyle='#5f3a17'; ctx.lineWidth=7; ctx.fill(P_HULL); ctx.stroke(P_HULL);
   ctx.fillStyle='#d9a05f'; ctx.strokeStyle='#b5793a'; ctx.lineWidth=5; ctx.fill(P_DECK); ctx.stroke(P_DECK);
   ctx.save(); ctx.clip(P_DECK); ctx.strokeStyle='#c08b4d'; ctx.lineWidth=4; ctx.globalAlpha=.9;
@@ -39,35 +40,42 @@ function drawPlayerShip(){
   for(const x of [322,358,394,430,466,502,538]){ ctx.moveTo(x,270); ctx.lineTo(x,850); }
   ctx.moveTo(300,380); ctx.lineTo(560,380); ctx.moveTo(300,740); ctx.lineTo(560,740); ctx.stroke();
   ctx.restore();
+  // 艉楼舵轮
   rr(330,776,200,68,18); ctx.fillStyle='#c8924f'; ctx.fill(); ctx.strokeStyle='#a06a32'; ctx.lineWidth=4; ctx.stroke();
   ctx.save(); ctx.translate(430,810);
   circle(0,0,24); ctx.fillStyle='#7a4a21'; ctx.fill(); ctx.strokeStyle='#5f3a17'; ctx.lineWidth=4; ctx.stroke();
   ctx.lineWidth=4; ctx.beginPath();
   for(const a of [0,Math.PI/2,Math.PI/4,3*Math.PI/4]){ ctx.moveTo(-Math.cos(a)*24,-Math.sin(a)*24); ctx.lineTo(Math.cos(a)*24,Math.sin(a)*24); }
   ctx.stroke(); circle(0,0,7); ctx.fillStyle='#5f3a17'; ctx.fill(); ctx.restore();
+  // 桅杆卷帆
   rr(416,318,28,112,13); ctx.fillStyle='#ecd9a9'; ctx.fill(); ctx.strokeStyle='#b99c62'; ctx.lineWidth=3; ctx.stroke();
   ctx.strokeStyle='#8a6a3a'; ctx.lineWidth=3; ctx.beginPath();
   for(const y of [348,378,408]){ ctx.moveTo(416,y); ctx.lineTo(444,y); } ctx.stroke();
   circle(430,306,14); ctx.fillStyle='#8a5a2b'; ctx.fill(); ctx.strokeStyle='#5f3a17'; ctx.lineWidth=4; ctx.stroke();
   circle(392,330,13); ctx.strokeStyle='#b98c4f'; ctx.lineWidth=6; ctx.stroke();
+  // 舱盖木桶
   rr(396,478,68,54,6); ctx.fillStyle='#b5793a'; ctx.fill(); ctx.strokeStyle='#8a5a2b'; ctx.lineWidth=4; ctx.stroke();
   ctx.strokeStyle='#8a5a2b'; ctx.lineWidth=3; ctx.beginPath();
   ctx.moveTo(419,478); ctx.lineTo(419,532); ctx.moveTo(442,478); ctx.lineTo(442,532);
   ctx.moveTo(396,505); ctx.lineTo(464,505); ctx.stroke();
   for(const p of [[350,468],[358,506]]){ circle(p[0],p[1],13); ctx.fillStyle='#a86a33'; ctx.fill();
     ctx.strokeStyle='#7a4a21'; ctx.lineWidth=3; ctx.stroke(); circle(p[0],p[1],5); ctx.fillStyle='#7a4a21'; ctx.fill(); }
+  // 炮位
   ctx.fillStyle='#4a3020';
   ctx.fillRect(580,418,20,28); ctx.fillRect(588,546,22,28); ctx.fillRect(580,676,20,28);
   drawCannon(498,430,1); drawCannon(498,560,1); drawCannon(498,690,1);
+  // 船头旗与破浪
   const fw=Math.sin(g.time*3)*4;
   ctx.fillStyle='#e05548'; ctx.strokeStyle='#a83a30'; ctx.lineWidth=3;
   ctx.beginPath(); ctx.moveTo(430,242); ctx.lineTo(398+fw,262); ctx.lineTo(430,272); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=6; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(418,248); ctx.lineTo(400,218); ctx.moveTo(442,248); ctx.lineTo(460,218); ctx.stroke();
+  // 船员
   for(const c of g.crew) drawCrew(c);
 }
 function drawEnemyShip(e){
   const s=e.s;
+  // 航迹（转向靠帮后淡出）
   const wakeA=Math.max(0,1-e.rot/(Math.PI/2));
   if(wakeA>0){
     ctx.globalAlpha=wakeA;
@@ -86,30 +94,35 @@ function drawEnemyShip(e){
   ctx.fillStyle=e.t.deck; ctx.strokeStyle='rgba(0,0,0,.33)'; ctx.lineWidth=3; ctx.fill(E_DECK); ctx.stroke(E_DECK);
   ctx.save(); ctx.clip(E_DECK); ctx.strokeStyle='rgba(0,0,0,.2)'; ctx.lineWidth=4; ctx.beginPath();
   for(const y of [-52,0,52]){ ctx.moveTo(-215,y); ctx.lineTo(205,y); } ctx.stroke(); ctx.restore();
-  if(e.type==='manowar'){
+  if(e.type==='manowar'){ // 鲨鱼齿
     ctx.fillStyle='rgba(255,255,255,.95)'; ctx.beginPath();
     ctx.moveTo(-185,-44); ctx.lineTo(-214,-30); ctx.lineTo(-185,-18); ctx.closePath();
     ctx.moveTo(-192,-8); ctx.lineTo(-222,2); ctx.lineTo(-192,12); ctx.closePath();
     ctx.moveTo(-185,32); ctx.lineTo(-212,46); ctx.lineTo(-185,56); ctx.closePath(); ctx.fill(); }
+  // 卷帆+骷髅
   rr(-95,-16,190,32,15); ctx.fillStyle='#26262c'; ctx.fill(); ctx.strokeStyle='#101014'; ctx.lineWidth=3; ctx.stroke();
   ctx.beginPath(); for(const x of [-55,0,55]){ ctx.moveTo(x,-16); ctx.lineTo(x,16);} ctx.stroke();
   drawSkull(-45,0,1.05);
   circle(0,0,11); ctx.fillStyle='#5a4326'; ctx.fill(); ctx.strokeStyle='#3a2a16'; ctx.lineWidth=3; ctx.stroke();
+  // 旗
   circle(212,0,6); ctx.fillStyle='#2a2a2a'; ctx.fill();
   ctx.fillStyle='#16161c'; ctx.strokeStyle='#000'; ctx.lineWidth=2;
   const fw=Math.sin(g.time*3+e.ph)*5;
   ctx.beginPath(); ctx.moveTo(216,-16); ctx.bezierCurveTo(244,-28,270,-24+fw,288,-10);
   ctx.lineTo(288,24); ctx.bezierCurveTo(264,12,240,10,216,22); ctx.closePath(); ctx.fill(); ctx.stroke();
   drawSkull(252,4,.85);
+  // 舷炮（靠帮后收起）
   if(e.t.shoot&&e.rot<0.6){ drawCannon(-95,-62,.9,true);
     if(e.flash>0){ ctx.save(); ctx.translate(-95-178*.9,-62); ctx.scale(.8,.8);
       ctx.fillStyle='#ff9a2e'; ctx.fill(SPARK); ctx.fillStyle='#ffd23e'; ctx.scale(.5,.5); ctx.fill(SPARK); ctx.restore(); } }
+  // 船上剩余海盗
   const slots=[[-40,-70],[30,72],[-90,40],[40,-20]];
   const rem=e.t.pir-e.deployed;
   for(let i=0;i<rem&&i<4;i++){ const p=slots[i];
     figureBody(p[0],p[1],'#f2f2f2','#3a3f4a');
     figureHead(p[0],p[1],'band',i%2?'#3a3f4a':'#d93636'); }
   ctx.restore();
+  // 血条
   if(!sink){
     const rf=e.rot/(Math.PI/2);
     const topOff=(152+(235-152)*rf)*s;
@@ -143,9 +156,10 @@ function drawBoardingRoutes(){
 function drawFocus(){
   const e=g.focus;if(!e||e.state==='sink'||e.gone)return;ctx.save();ctx.strokeStyle='#ffd23e';ctx.lineWidth=4;ctx.setLineDash([10,10]);ctx.beginPath();ctx.ellipse(e.x,e.y,Math.max(90,225*e.s),Math.max(65,155*e.s),e.rot,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);txt('集火',e.x,e.y-185*e.s,22,'#ffd23e','#5f3a17',4);ctx.restore();
 }
+
 function drawFxAll(dt){
   for(const f of g.fx){
-    f.t+=dt; const p=f.t/f.dur;
+    f.t+=dt; const p=clamp(f.t/f.dur,0,1);
     if(f.k==='boom'){
       ctx.globalAlpha=1-p;
       ctx.save(); ctx.translate(f.x,f.y); ctx.scale(f.s*(0.7+p*.8),f.s*(0.7+p*.8));
