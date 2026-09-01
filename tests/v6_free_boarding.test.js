@@ -116,7 +116,16 @@ const smart=vm.runInContext(`(()=>{
   g.enemies=[...blocked,noSpace];
   const none=findBestBerthingY(noSpace);
 
-  return {free,diverted,queued,first,kept,none};
+  const edgeShip=make('sloop',285,1100,'closing',null,false);
+  const upperBlockers=[];
+  for(const y of berthingCandidateYs(edgeShip).filter(y=>y<610)){
+    const o=make('sloop',y,560,'docked',y,true);
+    o.contactX=playerHullRightX(y);o.contactY=y;upperBlockers.push(o);
+  }
+  g.enemies=[...upperBlockers,edgeShip];
+  const far=findBestBerthingY(edgeShip);
+
+  return {free,diverted,queued,first,kept,none,far};
 })()`,ctx);
 
 assert(Math.abs(smart.free-520)<1, 'free ship should keep its natural Y');
@@ -125,6 +134,7 @@ assert(Math.abs(smart.queued-600)>40, 'trailing closing ship should avoid the ah
 assert.strictEqual(smart.first,700, 'first smart target should use current free Y');
 assert.strictEqual(smart.kept,700, 'valid targetContactY must stay stable instead of oscillating');
 assert.strictEqual(smart.none,null, 'fully occupied contact edge should return no berth and wait');
+assert(smart.far!==null&&smart.far>=610, 'full-edge scan must find a distant free berth instead of waiting forever');
 
 function playerHullRightX(y){
   const P={cx:430,cy:560,rx:172,ry:310};
