@@ -1,4 +1,4 @@
-// V6.9 transport-disappear RED/GREEN regression.
+// V6.9 transport-disappear RED/GREEN regression. Trigger RED after workflow creation.
 const fs=require('fs');
 const path=require('path');
 const vm=require('vm');
