@@ -45,7 +45,9 @@ function loop(now){
   const shx=g.shake?rand(-g.shake,g.shake):0, shy=g.shake?rand(-g.shake,g.shake):0;
   ctx.translate(vx+shx*vs,vy+shy*vs); ctx.scale(vs,vs);
   drawSea();
-  for(const e of g.enemies) if((e.state==='turning'||e.state==='docked')&&e.rot>0.9) drawDockedGear(e);
+  for(const e of g.enemies){
+    if(e.state==='docked'&&e.contact)drawDockedGear(e);
+  }
   for(const e of g.enemies) drawEnemyShip(e);
   drawPlayerShip();
   drawFocus();
