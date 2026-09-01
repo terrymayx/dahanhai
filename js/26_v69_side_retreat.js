@@ -1,42 +1,39 @@
-/* V6.9：运兵舰卸兵完成后，从接舷位置所在的上/下侧撤离。 */
-const V69_SIDE_RETREAT_MARGIN=220;
+/* V6.9：运兵舰完成卸兵后原地立即消失；已登上甲板的海盗继续战斗。 */
 
-function v69TroopsAboard(e){
+function v69TroopsUnloaded(e){
   if(!e||e.state!=='docked'||!e.t||e.deployed<e.t.pir)return false;
-  const live=g.boarders.filter(b=>b.ship===e&&b.hp>0);
-  return live.length>0&&live.every(b=>b.state==='fight');
+  return !g.boarders.some(b=>b.ship===e&&b.hp>0&&b.state!=='fight');
 }
 
-function beginV69SideRetreat(e,force=false){
+function removeV69TransportShip(e,force=false){
   if(!e||e.state==='sink'||e.gone)return false;
-  if(!force&&!v69TroopsAboard(e))return false;
-  const sideY=Number.isFinite(e.contactY)?e.contactY:e.y;
+  if(!force&&!v69TroopsUnloaded(e))return false;
+
+  /* 海盗已经进入独立甲板战斗，不再保留对母船对象的引用。 */
+  for(const b of g.boarders){
+    if(b.ship===e&&b.hp>0&&b.state==='fight')b.ship=null;
+  }
+
+  if(g.focus===e)g.focus=null;
   clearEnemyContact(e);
-  e.state='retreatSide';
-  e.retreatSide=sideY<PLAYER_COLLIDER.cy?-1:1;
-  e.retreatSpeed=Math.max(90,e.t.sp*1.35)*SPD;
-  e.rot=0;
+  e.gone=true;
+
+  /* 本帧直接从绘制数组移除，实现原地瞬间消失，而不是等下一帧过滤。 */
+  const i=g.enemies.indexOf(e);
+  if(i>=0)g.enemies.splice(i,1);
+
+  /* V6.8 的快照回收发生在本层之前，因此这里主动归还敌船对象池。 */
+  if(typeof enemyPool!=='undefined'&&enemyPool&&typeof enemyPool.release==='function')enemyPool.release(e);
   return true;
 }
 
-function updateV69SideRetreat(e,dt){
-  if(!e||e.state!=='retreatSide'||e.gone)return false;
-  const dir=e.retreatSide<0?-1:1;
-  const speed=Number.isFinite(e.retreatSpeed)?e.retreatSpeed:Math.max(90,e.t.sp*1.35)*SPD;
-  e.rot=0;
-  e.y+=dir*speed*dt;
-  if((dir<0&&e.y<-V69_SIDE_RETREAT_MARGIN)||(dir>0&&e.y>H+V69_SIDE_RETREAT_MARGIN))e.gone=true;
-  return true;
-}
-
-const _updateV69SideRetreat=update;
+const _updateV69TransportCleanup=update;
 update=function(dt){
-  _updateV69SideRetreat(dt);
-  for(const e of g.enemies){
-    /* 最后一名活着的海盗真正进入甲板 fight 后，母船立即解锁离帮。 */
-    if(e.state==='docked'&&v69TroopsAboard(e))beginV69SideRetreat(e);
-    /* 如果海盗在登船途中全部阵亡，旧逻辑可能进入 retreat；也统一改成上下撤退。 */
-    else if(e.state==='retreat')beginV69SideRetreat(e,true);
-    if(e.state==='retreatSide')updateV69SideRetreat(e,dt);
+  _updateV69TransportCleanup(dt);
+  for(let i=g.enemies.length-1;i>=0;i--){
+    const e=g.enemies[i];
+    if(e.state==='docked'&&v69TroopsUnloaded(e))removeV69TransportShip(e);
+    /* 兼容旧核心偶尔进入 retreat 的分支：不移动，直接清除。 */
+    else if(e.state==='retreat')removeV69TransportShip(e,true);
   }
 };
