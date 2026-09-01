@@ -2,25 +2,29 @@ const fs = require('fs');
 const assert = require('assert');
 const vm = require('vm');
 
-const boarding = fs.readFileSync('js/21_boarding_update.js','utf8');
+const aiPath='js/22_deck_combat_ai.js';
 const index = fs.readFileSync('index.html','utf8');
+assert(fs.existsSync(aiPath), 'V6.6 deck combat AI layer must exist');
+const ai = fs.readFileSync(aiPath,'utf8');
 
 assert(/V6\.6/.test(index), 'index must publish V6.6');
-assert(/V6\.6 DECK COMBAT AI START/.test(boarding), 'V6.6 deck combat AI helper block missing');
-assert(/function\s+crewCombatProfile/.test(boarding), 'crewCombatProfile missing');
-assert(/function\s+enterBoarderFight/.test(boarding), 'enterBoarderFight missing');
-assert(/function\s+boarderAttackPoint/.test(boarding), 'boarderAttackPoint missing');
-assert(/function\s+chooseBoarderCrewTarget/.test(boarding), 'chooseBoarderCrewTarget missing');
-assert(/function\s+moveCrewCombat/.test(boarding), 'moveCrewCombat missing');
-assert(/function\s+separateDeckFighters/.test(boarding), 'separateDeckFighters missing');
-assert(/function\s+separateCrewFormation/.test(boarding), 'separateCrewFormation missing');
-assert(/enterBoarderFight\(b\)/.test(boarding), 'boarding transitions must enter fight through V6.6 helper');
-assert(/chooseBoarderCrewTarget\(b\)/.test(boarding), 'fight boarders must use distributed crew targeting');
-assert(/moveCrewCombat\(c,tgt,dt\)/.test(boarding), 'crew must use role-aware combat movement');
-assert(/separateDeckFighters\(\)/.test(boarding), 'deck fighters must run local separation');
-assert(/separateCrewFormation\(\)/.test(boarding), 'crew must run formation separation');
+assert(/22_deck_combat_ai\.js/.test(index), 'index must load V6.6 deck combat AI layer');
+assert(/V6\.6 DECK COMBAT AI START/.test(ai), 'V6.6 deck combat AI helper block missing');
+assert(/function\s+crewCombatProfile/.test(ai), 'crewCombatProfile missing');
+assert(/function\s+enterBoarderFight/.test(ai), 'enterBoarderFight missing');
+assert(/function\s+boarderAttackPoint/.test(ai), 'boarderAttackPoint missing');
+assert(/function\s+chooseBoarderCrewTarget/.test(ai), 'chooseBoarderCrewTarget missing');
+assert(/function\s+moveCrewCombat/.test(ai), 'moveCrewCombat missing');
+assert(/function\s+separateDeckFighters/.test(ai), 'separateDeckFighters missing');
+assert(/function\s+separateCrewFormation/.test(ai), 'separateCrewFormation missing');
+assert(/updateBoarder=function/.test(ai), 'V6.6 must replace boarder fight movement');
+assert(/enterBoarderFight\(b\)/.test(ai), 'boarding transitions must enter fight through V6.6 helper');
+assert(/chooseBoarderCrewTarget\(b\)/.test(ai), 'fight boarders must use distributed crew targeting');
+assert(/moveCrewCombat\(c,tgt,dt\)/.test(ai), 'crew must use role-aware combat movement');
+assert(/separateDeckFighters\(\)/.test(ai), 'deck fighters must run local separation');
+assert(/separateCrewFormation\(\)/.test(ai), 'crew must run formation separation');
 
-const helperMatch = boarding.match(/\/\* V6\.6 DECK COMBAT AI START \*\/([\s\S]*?)\/\* V6\.6 DECK COMBAT AI END \*\//);
+const helperMatch = ai.match(/\/\* V6\.6 DECK COMBAT AI START \*\/([\s\S]*?)\/\* V6\.6 DECK COMBAT AI END \*\//);
 assert(helperMatch, 'V6.6 helper block must be extractable');
 const ctx = {
   Math,
@@ -34,7 +38,6 @@ vm.runInContext(helperMatch[1],ctx);
 const captain={id:'captain',x:450,y:600,homeX:450,homeY:600,alive:true};
 const archer={id:'archer',x:450,y:360,homeX:450,homeY:360,alive:true};
 const gunner={id:'gunner',x:500,y:610,homeX:500,homeY:610,alive:true};
-const drummer={id:'drummer',x:370,y:770,homeX:370,homeY:770,alive:true};
 const cp=ctx.crewCombatProfile(captain),ap=ctx.crewCombatProfile(archer),gp=ctx.crewCombatProfile(gunner);
 assert(ap.preferred>gp.preferred, 'archer must prefer a longer combat distance than gunner');
 assert(gp.min>cp.min, 'gunner must keep more minimum distance than captain');
