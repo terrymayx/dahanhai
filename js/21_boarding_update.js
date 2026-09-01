@@ -85,8 +85,20 @@ function update(dt){
     if(e.state==='sink'){if(e.contact)clearEnemyContact(e);e.sinkT+=dt;continue;}
     e.rot=0;
     if(e.t.role==='ranged'){
-      if(e.state==='approach'){e.x=Math.max(e.rangeX,e.x-e.t.sp*SPD*dt);e.y+=(e.rangeY-e.y)*Math.min(1,dt*.65);if(e.x<=e.rangeX+1)e.state='ranged';}
-      else if(e.state==='ranged'){e.x+=(e.rangeX-e.x)*Math.min(1,dt*.8);e.y+=(e.rangeY+Math.sin(g.time*.7+e.ph)*65-e.y)*Math.min(1,dt*.7);}
+      const ai=enemyAIProfile(e);
+      e.rangeRepathT=Math.max(0,(e.rangeRepathT||0)-dt);
+      if(e.rangeRepathT<=0){
+        if(gunshipLaneBlocked(e,e.rangeY))assignGunshipLane(e,true);
+        else e.rangeRepathT=ai.rangeRepath;
+      }
+      if(e.state==='approach'){
+        e.x=Math.max(e.rangeX,e.x-e.t.sp*SPD*dt);
+        e.y+=(e.rangeY-e.y)*Math.min(1,dt*.8);
+        if(e.x<=e.rangeX+1)e.state='ranged';
+      }else if(e.state==='ranged'){
+        e.x+=(e.rangeX-e.x)*Math.min(1,dt*.8);
+        e.y+=(e.rangeY+Math.sin(g.time*.7+e.ph)*24-e.y)*Math.min(1,dt*.8);
+      }
       if((e.state==='approach'||e.state==='ranged')&&e.x<1750){e.shootT-=dt*SPD;if(e.shootT<=0){e.shootT=rand(3.2,4.6);e.flash=.2;const mx=e.x-243*e.s,my=e.y-56*e.s,tx=430+rand(-45,45),ty=560+rand(-190,190),d=dist(mx,my,tx,ty);g.eballs.push({x:mx,y:my,vx:(tx-mx)/d*350,vy:(ty-my)/d*350,life:4});g.fx.push({k:'flash',x:mx-14,y:my,t:0,dur:.2,s:.8});sfx.fire();}}
       continue;
     }
@@ -99,33 +111,34 @@ function update(dt){
         assignBerthingTarget(e,true);
       }
     }else if(e.state==='closing'){
+      const ai=enemyAIProfile(e);
       e.berthRepathT=Math.max(0,(e.berthRepathT||0)-dt);
       if(Number.isFinite(e.targetContactY)){
         if(e.berthRepathT<=0){
           if(berthingTargetBlocked(e,e.targetContactY))assignBerthingTarget(e,true);
-          else e.berthRepathT=.65;
+          else e.berthRepathT=ai.repath;
         }
       }else if(e.berthRepathT<=0)assignBerthingTarget(e,true);
 
       if(!Number.isFinite(e.targetContactY)){
         e.berthWaitT=(e.berthWaitT||0)+dt;
         const c=enemyCollider(e),p=contactPointForEnemy(e);
-        const waitX=p.x+c.rx+230;
-        const waitSpeed=Math.max(10,e.t.sp*.10)*SPD;
+        const waitX=p.x+c.rx+(e.type==='manowar'?290:215);
+        const waitSpeed=Math.max(10,e.t.sp*ai.waitSpeed)*SPD;
         if(e.x>waitX)e.x=Math.max(waitX,e.x-waitSpeed*dt);
         continue;
       }
 
       e.berthWaitT=0;
       const ty=e.targetContactY,c=enemyCollider(e);
-      const lateralSpeed=Math.max(42,e.t.sp*.52)*SPD;
+      const lateralSpeed=Math.max(36,e.t.sp*ai.lateral)*SPD;
       e.y=clamp(e.y+clamp(ty-e.y,-lateralSpeed*dt,lateralSpeed*dt),245,875);
 
       const p=contactPointAtY(e,ty);
       const targetX=p.x+c.rx-PLAYER_COLLIDER.skin;
       const gap=Math.max(0,e.x-targetX);
       const aligned=Math.abs(e.y-ty)<=Math.max(10,c.ry*.22);
-      const forwardFactor=aligned?1:.55;
+      const forwardFactor=(aligned?1:.55)*ai.forward;
       const speed=Math.max(24,e.t.sp*clamp(gap/360,.28,.72))*SPD*forwardFactor;
       e.x=Math.max(targetX,e.x-speed*dt);
       constrainEnemyOutsidePlayer(e);
@@ -170,7 +183,8 @@ function update(dt){
     if(Number.isFinite(e.berthLastX)&&gap>45&&Math.abs(e.x-e.berthLastX)<.08)e.berthStallT=(e.berthStallT||0)+dt;
     else e.berthStallT=Math.max(0,(e.berthStallT||0)-dt*.5);
     e.berthLastX=e.x;
-    if(e.berthStallT>.8){e.berthStallT=0;assignBerthingTarget(e,true);}
+    const stallLimit=Math.max(.55,enemyAIProfile(e).repath*1.4);
+    if(e.berthStallT>stallLimit){e.berthStallT=0;assignBerthingTarget(e,true);}
   }
   g.enemies=g.enemies.filter(e=>!e.gone&&!(e.state==='sink'&&e.sinkT>1.35));
 
