@@ -1,0 +1,55 @@
+const fs=require('fs');
+const path=require('path');
+const assert=require('assert');
+const root=path.join(__dirname,'..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+
+const index=read('index.html');
+const model=read('js/10_model.js');
+const update=read('js/21_boarding_update.js');
+const fx=read('js/40_scene.js');
+const v68=read('js/24_v68_feedback_perf.js');
+const v69Path=path.join(root,'js/25_v69_endless_waves.js');
+assert.ok(fs.existsSync(v69Path),'V6.9 layer must exist');
+const v69=read('js/25_v69_endless_waves.js');
+
+assert.match(index,/V6\.9/,'page must publish V6.9');
+assert.match(index,/js\/25_v69_endless_waves\.js/,'index must load V6.9 layer');
+assert.doesNotMatch(index,/js\/55_levels\.js/,'level system must not load');
+assert.doesNotMatch(index,/js\/59_melee_test_mode\.js/,'old melee-test archer suppression must not load');
+
+for(const type of ['sloop','gunship','manowar']){
+  const m=model.match(new RegExp(`${type}\\s*:\\{([^}]+)\\}`));
+  assert.ok(m,`${type} type must exist`);
+  assert.match(m[1],/pir\s*:\s*[1-9]\d*/i,`${type} must carry pirates`);
+  assert.match(m[1],/shoot\s*:\s*false/i,`${type} must not shoot`);
+  assert.doesNotMatch(m[1],/role\s*:\s*['"]ranged['"]/i,`${type} must not be ranged`);
+}
+assert.match(model,/gunship\s*:\{[^}]*pir\s*:\s*5/i,'medium troop ship must carry 5 pirates');
+assert.match(model,/manowar\s*:\{[^}]*pir\s*:\s*8/i,'heavy troop ship must carry 8 pirates');
+
+assert.match(v69,/const\s+V69_WAVE_INTERVAL\s*=\s*15\b/,'wave interval must be exactly 15 seconds');
+assert.match(v69,/function\s+v69WaveShipCount\s*\(/,'wave ship-count helper must exist');
+assert.match(v69,/Math\.min\(10\s*,\s*3\s*\+\s*Math\.floor\(\(wave\s*-\s*1\)\s*\/\s*2\)\)/,'wave count must cap at 10');
+assert.match(v69,/function\s+startV69Wave\s*\(/,'endless wave starter must exist');
+assert.match(v69,/waveClock/,'wave timer state must exist');
+assert.match(v69,/nextWaveIn/,'next-wave countdown state must exist');
+assert.match(v69,/while\s*\(g\.waveClock\s*>=\s*V69_WAVE_INTERVAL\)/,'wave timer must catch up without waiting for previous waves to clear');
+assert.match(v69,/g\.state\s*===\s*['"]win['"][^\n]*g\.state\s*=\s*['"]playing['"]/,'endless mode must suppress normal win state');
+
+assert.match(v69,/function\s+chooseV69ArcherTarget\s*\(/,'archer target helper must exist');
+const fightPos=v69.indexOf("state==='fight'");
+const transitPos=Math.min(...['plank','swing','climb'].map(s=>v69.indexOf(`state==='${s}'`)).filter(n=>n>=0));
+const shipPos=v69.indexOf('g.enemies');
+assert.ok(fightPos>=0&&transitPos>fightPos&&shipPos>transitPos,'archer priority must be fight boarder -> transit boarder -> enemy ship');
+assert.match(v69,/function\s+fireV69Archer\s*\(/,'continuous archer fire helper must exist');
+assert.match(v69,/v69ArcherT/,'archer automatic fire timer must exist');
+assert.match(v69,/g\.arrows\.push\(/,'archer must launch arrows at ship targets');
+assert.match(v69,/damageBoarder\(/,'archer must damage boarding targets');
+
+assert.match(update,/deployBoarder\(e\)/,'boarding deployment must remain in battle loop');
+assert.match(fx,/const p=clamp\(f\.t\/f\.dur,0,1\);/,'FX progress clamp regression must remain');
+assert.match(v68,/V68SpatialHash/,'V6.8 spatial hash must remain');
+assert.match(v68,/enemyPool/,'V6.8 enemy pool must remain');
+
+console.log('PASS: V6.9 endless troop wave regression');
