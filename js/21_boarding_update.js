@@ -51,21 +51,6 @@ function moveCaptain(c,tgt,dt){
   if(!tgt){c.x+=(c.homeX-c.x)*Math.min(1,dt*2.5);c.y+=(c.homeY-c.y)*Math.min(1,dt*2.5);return;}
   const d=dist(c.x,c.y,tgt.x,tgt.y);if(d>c.rg&&d<250){c.x+=(tgt.x-c.x)/d*82*dt;c.y+=(tgt.y-c.y)/d*82*dt;}
 }
-function findLocalBerthingOffset(e){
-  const c=enemyCollider(e);
-  let push=0;
-  for(const o of g.enemies){
-    if(o===e||o.gone||o.state==='sink'||o.t.role==='ranged')continue;
-    const oc=enemyCollider(o);
-    const dx=Math.abs(o.x-e.x);
-    const minDx=c.rx+oc.rx+40;
-    if(dx>minDx)continue;
-    const dy=e.y-o.y;
-    const need=c.ry+oc.ry+12-Math.abs(dy);
-    if(need>0)push+=(dy>=0?1:-1)*Math.min(need,55);
-  }
-  return clamp(push,-70,70);
-}
 function update(dt){
   g.time+=dt;g.scroll+=60*dt;
   for(const f of g.foam){f.y+=f.vy*dt;f.x+=f.vx*dt;f.life-=dt;}g.foam=g.foam.filter(f=>f.life>0);g.foamT-=dt;
@@ -88,26 +73,50 @@ function update(dt){
       const p=contactPointForEnemy(e),c=enemyCollider(e);
       const enterX=p.x+c.rx+470;
       e.x-=e.t.sp*SPD*dt;
-      if(e.x<=enterX)e.state='closing';
+      if(e.x<=enterX){
+        e.state='closing';e.berthRepathT=0;e.berthWaitT=0;e.berthStallT=0;e.berthLastX=e.x;
+        assignBerthingTarget(e,true);
+      }
     }else if(e.state==='closing'){
-      const avoid=findLocalBerthingOffset(e);
-      const lateralSpeed=Math.max(28,e.t.sp*.36)*SPD;
-      e.y=clamp(e.y+clamp(avoid,-lateralSpeed*dt,lateralSpeed*dt),245,875);
+      e.berthRepathT=Math.max(0,(e.berthRepathT||0)-dt);
+      if(Number.isFinite(e.targetContactY)){
+        if(e.berthRepathT<=0){
+          if(berthingTargetBlocked(e,e.targetContactY))assignBerthingTarget(e,true);
+          else e.berthRepathT=.65;
+        }
+      }else if(e.berthRepathT<=0)assignBerthingTarget(e,true);
 
-      const p=contactPointForEnemy(e),c=enemyCollider(e);
+      if(!Number.isFinite(e.targetContactY)){
+        e.berthWaitT=(e.berthWaitT||0)+dt;
+        const c=enemyCollider(e),p=contactPointForEnemy(e);
+        const waitX=p.x+c.rx+230;
+        const waitSpeed=Math.max(10,e.t.sp*.10)*SPD;
+        if(e.x>waitX)e.x=Math.max(waitX,e.x-waitSpeed*dt);
+        continue;
+      }
+
+      e.berthWaitT=0;
+      const ty=e.targetContactY,c=enemyCollider(e);
+      const lateralSpeed=Math.max(42,e.t.sp*.52)*SPD;
+      e.y=clamp(e.y+clamp(ty-e.y,-lateralSpeed*dt,lateralSpeed*dt),245,875);
+
+      const p=contactPointAtY(e,ty);
       const targetX=p.x+c.rx-PLAYER_COLLIDER.skin;
       const gap=Math.max(0,e.x-targetX);
-      const speed=Math.max(28,e.t.sp*clamp(gap/360,.30,.72))*SPD;
+      const aligned=Math.abs(e.y-ty)<=Math.max(10,c.ry*.22);
+      const forwardFactor=aligned?1:.55;
+      const speed=Math.max(24,e.t.sp*clamp(gap/360,.28,.72))*SPD*forwardFactor;
       e.x=Math.max(targetX,e.x-speed*dt);
+      constrainEnemyOutsidePlayer(e);
 
-      if(lockEnemyContact(e)){
+      if(aligned&&lockEnemyContact(e)){
         e.state='docked';e.deployT=.18;e.clearT=0;
         g.warnT=3.5;sfx.alarm();
       }
     }else if(e.state==='docked'){
       e.rot=0;
       if(!e.contact||!Number.isFinite(e.contactX)||!Number.isFinite(e.contactY)){
-        clearEnemyContact(e);e.state='closing';continue;
+        clearEnemyContact(e);e.state='closing';assignBerthingTarget(e,true);continue;
       }
       const c=enemyCollider(e);
       e.x=e.contactX+c.rx-PLAYER_COLLIDER.skin;
@@ -131,6 +140,15 @@ function update(dt){
   }
 
   resolveEnemyShipCollisions();
+  for(const e of g.enemies){
+    if(e.state!=='closing'||!Number.isFinite(e.targetContactY))continue;
+    const p=contactPointAtY(e,e.targetContactY),c=enemyCollider(e);
+    const gap=Math.max(0,e.x-(p.x+c.rx-PLAYER_COLLIDER.skin));
+    if(Number.isFinite(e.berthLastX)&&gap>45&&Math.abs(e.x-e.berthLastX)<.08)e.berthStallT=(e.berthStallT||0)+dt;
+    else e.berthStallT=Math.max(0,(e.berthStallT||0)-dt*.5);
+    e.berthLastX=e.x;
+    if(e.berthStallT>.8){e.berthStallT=0;assignBerthingTarget(e,true);}
+  }
   g.enemies=g.enemies.filter(e=>!e.gone&&!(e.state==='sink'&&e.sinkT>1.35));
 
   g.cannonT-=dt*(g.rallyT>0?1.6:1)*(g.crew[3].alive?1.22:1);if(g.cannonT<=0){if(passiveCannon())g.cannonT=2.25;else g.cannonT=.5;}
