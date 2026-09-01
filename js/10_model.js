@@ -55,13 +55,14 @@ function startWave(n){
   if(n===1)g.hintT=11;
 }
 function spawnEnemy(type){
-  const t=TYPES[type];
+  const t=TYPES[type],naturalRangeY=rand(300,820);
   const e={type,t,s:t.s,x:2070,y:rand(250,870),hp:t.hp,max:t.hp,state:'approach',rot:0,
     deployed:0,deployT:0,shootT:rand(2.4,4),flash:0,ph:rand(0,6.28),sinkT:0,clearT:0,contact:false,
     contactX:null,contactY:null,contactNormalX:1,contactNormalY:0,
     targetContactY:null,berthRepathT:0,berthWaitT:0,berthStallT:0,berthLastX:null,
-    rangeX:rand(1260,1510),rangeY:rand(300,820),gone:false};
+    rangeX:rand(1260,1510),rangeY:naturalRangeY,naturalRangeY,rangeRepathT:0,gone:false};
   g.enemies.push(e);
+  if(t.role==='ranged')assignGunshipLane(e,true);
 }
 function inShip(e,x,y){
   const hx=200*e.s,hy=145*e.s;
@@ -98,10 +99,64 @@ function contactPointAtY(e,y){
 function contactPointForEnemy(e){return contactPointAtY(e,e.y);}
 function enemyBowX(e){return e.x-enemyCollider(e).rx;}
 
+/* V6.5 ENEMY AI START */
+function enemyAIProfile(e){
+  const type=e&&e.type;
+  if(type==='sloop')return {berthStep:30,berthClearance:8,repath:.36,waitSpeed:.16,lateral:.72,forward:1.08,rangedSeparation:0,rangedStep:0,rangeRepath:0};
+  if(type==='manowar')return {berthStep:52,berthClearance:30,repath:.82,waitSpeed:.07,lateral:.40,forward:.82,rangedSeparation:0,rangedStep:0,rangeRepath:0};
+  if(type==='gunship')return {berthStep:40,berthClearance:16,repath:.65,waitSpeed:.10,lateral:.50,forward:1,rangedSeparation:150,rangedStep:70,rangeRepath:1.2};
+  return {berthStep:40,berthClearance:16,repath:.65,waitSpeed:.10,lateral:.50,forward:1,rangedSeparation:0,rangedStep:0,rangeRepath:0};
+}
+function berthingScanStep(e){return enemyAIProfile(e).berthStep;}
+function berthingClearance(e){return enemyAIProfile(e).berthClearance;}
+function gunshipCandidateYs(e){
+  const ai=enemyAIProfile(e),step=Math.max(40,ai.rangedStep||70);
+  const base=clamp(Number.isFinite(e.naturalRangeY)?e.naturalRangeY:(Number.isFinite(e.rangeY)?e.rangeY:e.y),300,820);
+  const out=[base];
+  for(let d=step;d<=560;d+=step){
+    for(const raw of [base-d,base+d]){
+      const y=clamp(raw,300,820);
+      if(!out.some(v=>Math.abs(v-y)<1))out.push(y);
+    }
+  }
+  return out;
+}
+function gunshipLaneBlocked(e,y){
+  if(!Number.isFinite(y))return true;
+  const sep=enemyAIProfile(e).rangedSeparation||140;
+  for(const o of g.enemies){
+    if(o===e||o.gone||o.state==='sink'||o.t.role!=='ranged')continue;
+    const oy=Number.isFinite(o.rangeY)?o.rangeY:o.y;
+    const need=Math.max(sep,enemyAIProfile(o).rangedSeparation||sep);
+    if(Math.abs(y-oy)<need)return true;
+  }
+  return false;
+}
+function findGunshipLane(e){
+  const base=Number.isFinite(e.naturalRangeY)?e.naturalRangeY:e.y;
+  let best=null,bestScore=Infinity;
+  for(const y of gunshipCandidateYs(e)){
+    if(gunshipLaneBlocked(e,y))continue;
+    const score=Math.abs(y-base);
+    if(score<bestScore){best=y;bestScore=score;}
+  }
+  return best;
+}
+function assignGunshipLane(e,force=false){
+  if(!e||e.t.role!=='ranged')return null;
+  const ai=enemyAIProfile(e);
+  if(!force&&Number.isFinite(e.rangeY)&&!gunshipLaneBlocked(e,e.rangeY))return e.rangeY;
+  const lane=findGunshipLane(e);
+  if(Number.isFinite(lane))e.rangeY=lane;
+  e.rangeRepathT=ai.rangeRepath;
+  return Number.isFinite(lane)?lane:e.rangeY;
+}
+/* V6.5 ENEMY AI END */
+
 /* V6.3 连续接舷扫描：所有候选都是实际 Y 坐标，不存在固定槽位。 */
 function berthingCandidateYs(e){
-  const c=enemyCollider(e),base=clampContactY(e.y,c.ry),out=[base];
-  for(let d=40;d<=640;d+=40){
+  const c=enemyCollider(e),base=clampContactY(e.y,c.ry),out=[base],step=berthingScanStep(e);
+  for(let d=step;d<=640;d+=step){
     for(const raw of [base-d,base+d]){
       const y=clampContactY(raw,c.ry);
       if(!out.some(v=>Math.abs(v-y)<1))out.push(y);
@@ -111,15 +166,15 @@ function berthingCandidateYs(e){
 }
 function berthingTargetBlocked(e,y){
   if(!Number.isFinite(y))return true;
-  const c=enemyCollider(e);
+  const c=enemyCollider(e),clearance=berthingClearance(e);
   for(const o of g.enemies){
     if(o===e||o.gone||o.state==='sink'||o.t.role==='ranged')continue;
     const oc=enemyCollider(o);
     let oy=null;
     if(o.state==='docked'&&o.contact)oy=Number.isFinite(o.contactY)?o.contactY:o.y;
-    else if(o.state==='closing'&&Number.isFinite(o.targetContactY)&&o.x<=e.x+10)oy=o.targetContactY;
+    else if(o.state==='closing'&&Number.isFinite(o.targetContactY)&&o.x<=e.x+80)oy=o.targetContactY;
     else continue;
-    if(Math.abs(y-oy)<c.ry+oc.ry+16)return true;
+    if(Math.abs(y-oy)<c.ry+oc.ry+clearance)return true;
   }
   return false;
 }
@@ -134,9 +189,10 @@ function findBestBerthingY(e){
   return best;
 }
 function assignBerthingTarget(e,force=false){
+  const ai=enemyAIProfile(e);
   if(!force&&Number.isFinite(e.targetContactY)&&!berthingTargetBlocked(e,e.targetContactY))return e.targetContactY;
   e.targetContactY=findBestBerthingY(e);
-  e.berthRepathT=Number.isFinite(e.targetContactY)?.65:.45;
+  e.berthRepathT=Number.isFinite(e.targetContactY)?ai.repath:Math.max(.28,ai.repath*.7);
   return e.targetContactY;
 }
 function shipsTouchPlayer(e){
