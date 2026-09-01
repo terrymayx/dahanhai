@@ -41,13 +41,13 @@ function bigButton(b,label,sub){
 }
 function overlay(){ ctx.fillStyle='rgba(6,20,32,.74)'; ctx.fillRect(0,0,W,H); }
 function drawMenu(){
-  overlay();txt('大 航 海 时 代',960,280,110,'#ffffff','#5f3a17',14);txt('V6.0 · 自由接舷系统',960,365,38,'#ffd23e','#5f3a17',6);
+  overlay();txt('大 航 海 时 代',960,280,110,'#ffffff','#5f3a17',14);txt('V6.3 · 智能自由接舷',960,365,38,'#ffd23e','#5f3a17',6);
   const lines=['🏴‍☠️ 炮舰会停在远处持续开火；突击艇和巨舰会尝试接舷',
-    '⚓ 敌船可在旗舰右侧任意位置真实贴帮，哪里碰到就在哪里接舷',
-    '🪝 多艘船能否同时靠上来只由船体碰撞和实际空间决定',
+    '⚓ 敌船提前扫描连续空位，选择最近可用位置后稳定靠近',
+    '🪝 目标被抢占会重新寻位；没有空间时减速等待，不再硬挤',
     '⚔️ 同一组三个技能会随战况切换：齐射↔火药桶 / 箭雨↔速射 / 号令↔挥砍',
     '🎯 点击敌船可集火；守住 '+WAVE_TOTAL+' 波进攻，别让旗舰沉没！'];
-  lines.forEach((l,i)=>txt(l,960,445+i*48,25,'#e8f4fb','#0e3a52',5));bigButton(BTN_START,'开始连续海战！');txt('自由接舷 · 鼠标 / 触摸 · 横屏体验最佳',960,835,20,'#9cc4d8',null,0);
+  lines.forEach((l,i)=>txt(l,960,445+i*48,25,'#e8f4fb','#0e3a52',5));bigButton(BTN_START,'开始连续海战！');txt('智能自由接舷 · 鼠标 / 触摸 · 横屏体验最佳',960,835,20,'#9cc4d8',null,0);
 }
 
 function drawEnd(win){
