@@ -16,3 +16,7 @@ jobs:
         run: node tests/v9_0_vector_geometry.test.js
       - name: V9.0 organic ship visuals
         run: node tests/v9_0_damage_visual_contract.test.js
+      - name: V9.0 renderer integration
+        run: node tests/v9_0_render_integration.test.js
+      - name: V9.0 entry contract
+        run: node tests/v9_0_entry_contract.test.js
