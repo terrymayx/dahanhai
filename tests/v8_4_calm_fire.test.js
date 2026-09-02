@@ -27,6 +27,6 @@ assert(feedback.hitStop>0,'hit-stop may remain even when camera shake is disable
 
 const html=fs.readFileSync('index.html','utf8');
 for(const f of ['00_v8_base.js','10_ship_grid.js','20_projectiles.js','30_battle.js','35_combat_tuning.js','40_render.js','50_input_loop.js']){
-  assert(html.includes(`js/v8/${f}?v=8.4.1`),`${f} must use V8.4.1 cache key`);
+  assert(html.includes(`js/v8/${f}?v=8.4.2`),`${f} must use V8.4.2 cache key`);
 }
-console.log('V8.4.1 calm fire tests passed');
+console.log('V8.4.2 calm fire tests passed');
