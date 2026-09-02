@@ -19,3 +19,7 @@ jobs:
         run: node tests/v8_2_powder_chain.test.js
       - name: V8.2 debris clusters
         run: node tests/v8_2_debris_cluster.test.js
+      - name: V8.2 render contract
+        run: node tests/v8_2_render_contract.test.js
+      - name: V8.2 entry
+        run: node tests/v8_2_entry.test.js
