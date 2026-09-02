@@ -11,11 +11,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: V8.4 RED GREEN
+      - name: V8 full regression
         shell: bash
         run: |
-          node tests/v8_4_ship_impulse.test.js
-          node tests/v8_4_ballistic_feel.test.js
-          node tests/v8_4_feedback_levels.test.js
-          node tests/v8_4_debris_water.test.js
-          node tests/v8_4_render_contract.test.js
+          set -e
+          for t in tests/v8_4*.test.js; do echo "== $t =="; node "$t"; done
+          for t in tests/v8_3*.test.js tests/v8_2*.test.js tests/v8_1*.test.js tests/v8_0*.test.js; do echo "== $t =="; node "$t"; done
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -e
+          for f in js/v8/*.js; do node --check "$f"; done
+      - name: Legacy V6/V7 regression
+        shell: bash
+        run: |
+          set -e
+          cp index.html /tmp/v8-index.html
+          cp legacy_v7.html index.html
+          for t in tests/v6*.test.js tests/v7*.test.js; do echo "== $t =="; node "$t"; done
+          cp /tmp/v8-index.html index.html
+          git diff --exit-code
