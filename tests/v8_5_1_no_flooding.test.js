@@ -5,10 +5,10 @@ const assert=require('assert');
 const html=fs.readFileSync('index.html','utf8');
 const overlay=fs.readFileSync('js/v8/45_damage_overlay.js','utf8');
 
-assert(fs.existsSync('js/v8/36_damage_model.js'),'V8.5.1 must use a damage-only module');
+assert(fs.existsSync('js/v8/36_damage_model.js'),'V8.5.1 damage-only module must remain available');
 assert(!html.includes('36_damage_flooding.js'),'active entry must not load flooding module');
-assert(html.includes('36_damage_model.js?v=8.5.1'),'active entry must load V8.5.1 damage model');
-assert(html.includes('V8.5.1 · 船体损伤与破甲'),'page must identify V8.5.1 damage/armor build');
+assert(html.includes('36_damage_model.js?v=8.6.0'),'active V8.6 entry must load the damage-only model');
+assert(html.includes('V8.6 · 部件损伤与结构应力'),'page must identify current V8.6 build');
 
 for(const token of ['进水','漏水','flooding','leaks','draft','drawLeak','applyDraft']){
   assert(!overlay.includes(token),`damage overlay must not contain flooding token: ${token}`);
@@ -45,4 +45,4 @@ assert(!Object.prototype.hasOwnProperty.call(enemy,'draft'),'destroyed hull must
 assert.strictEqual(enemy.speed,speedBefore,'destroyed hull must not apply flooding speed penalties');
 assert.strictEqual(state.shake,0,'damage model must preserve no-shake behavior');
 
-console.log('V8.5.1 no-flooding tests passed');
+console.log('V8.5.1 no-flooding compatibility tests passed');
