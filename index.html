@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>大航海时代 V8.6 · 部件损伤与结构应力</title>
+<title>大航海时代 V9.0 · 矢量船体重构</title>
 <style>
   html,body{margin:0;padding:0;background:#0b1e2e;height:100%;overflow:hidden;}
   canvas{display:block;position:fixed;left:0;top:0;touch-action:none;user-select:none;-webkit-user-select:none;}
@@ -14,17 +14,19 @@
 </head>
 <body>
 <canvas id="cv"></canvas>
-<div id="rot">🎮 请横屏体验<br><small style="font-size:14px;opacity:.7">V8.6 · 部件损伤与结构应力</small></div>
-<!-- V8.6.0: progressive component degradation + beam structure stress + local rupture feedback. Flooding remains fully removed; V8.4.2 calm fire/no recoil remains. -->
-<script src="js/v8/00_v8_base.js?v=8.6.0"></script>
-<script src="js/v8/10_ship_grid.js?v=8.6.0"></script>
-<script src="js/v8/20_projectiles.js?v=8.6.0"></script>
-<script src="js/v8/30_battle.js?v=8.6.0"></script>
-<script src="js/v8/35_combat_tuning.js?v=8.6.0"></script>
-<script src="js/v8/36_damage_model.js?v=8.6.0"></script>
-<script src="js/v8/37_component_stress.js?v=8.6.0"></script>
-<script src="js/v8/40_render.js?v=8.6.0"></script>
-<script src="js/v8/45_damage_overlay.js?v=8.6.0"></script>
-<script src="js/v8/50_input_loop.js?v=8.6.0"></script>
+<div id="rot">🎮 请横屏体验<br><small style="font-size:14px;opacity:.7">V9.0 · 矢量船体重构</small></div>
+<!-- V9.0.0: smooth procedural vector hulls + organic holes/debris. Hidden grid HP, armor-gated penetration, component stress, calm 2-shot fire and no flooding/recoil remain. -->
+<script src="js/v8/00_v8_base.js?v=9.0.0"></script>
+<script src="js/v8/10_ship_grid.js?v=9.0.0"></script>
+<script src="js/v8/20_projectiles.js?v=9.0.0"></script>
+<script src="js/v8/30_battle.js?v=9.0.0"></script>
+<script src="js/v8/35_combat_tuning.js?v=9.0.0"></script>
+<script src="js/v8/36_damage_model.js?v=9.0.0"></script>
+<script src="js/v8/37_component_stress.js?v=9.0.0"></script>
+<script src="js/v8/38_vector_ship.js?v=9.0.0"></script>
+<script src="js/v8/40_render.js?v=9.0.0"></script>
+<script src="js/v8/41_render_v9.js?v=9.0.0"></script>
+<script src="js/v8/45_damage_overlay.js?v=9.0.0"></script>
+<script src="js/v8/50_input_loop.js?v=9.0.0"></script>
 </body>
 </html>
