@@ -27,6 +27,6 @@ assert(feedback.hitStop>0,'hit-stop may remain even when camera shake is disable
 
 const html=fs.readFileSync('index.html','utf8');
 for(const f of ['00_v8_base.js','10_ship_grid.js','20_projectiles.js','30_battle.js','35_combat_tuning.js','40_render.js','50_input_loop.js']){
-  assert(html.includes(`js/v8/${f}?v=8.5.1`),`${f} must remain loaded by the V8.5.1 entry`);
+  assert(html.includes(`js/v8/${f}?v=8.6.0`),`${f} must remain loaded by the V8.6 entry`);
 }
 console.log('V8.4 calm-fire compatibility tests passed');
