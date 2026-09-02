@@ -136,8 +136,16 @@
 
   function drawProjectiles(state){
     for(const p of state.projectiles){
-      ctx.fillStyle=p.side==='player'?'#242a31':'#6b2424';ctx.beginPath();ctx.arc(p.x,p.y,p.radius||5,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle='rgba(255,244,197,.65)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(p.x-p.vx*.025,p.y-p.vy*.025);ctx.lineTo(p.x,p.y);ctx.stroke();
+      const z=p.z||0,drawY=p.y-z;
+      const projectileShadow=Math.max(.08,.28-Math.min(.2,z/900));
+      ctx.save();ctx.globalAlpha=projectileShadow;ctx.fillStyle='#102b39';ctx.beginPath();
+      ctx.ellipse(p.x,p.y+3,7+Math.min(10,z*.035),3.2+Math.min(4,z*.012),0,0,Math.PI*2);ctx.fill();ctx.restore();
+
+      ctx.strokeStyle='rgba(255,244,197,.58)';ctx.lineWidth=3;ctx.beginPath();
+      ctx.moveTo(p.x-p.vx*.025,p.y-p.vy*.025-(p.prevZ||0));ctx.lineTo(p.x,drawY);ctx.stroke();
+      const size=(p.radius||5)*(1+Math.min(.28,z/650));
+      ctx.fillStyle=p.side==='player'?'#242a31':'#6b2424';ctx.beginPath();ctx.arc(p.x,drawY,size,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.30)';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(p.x-1.5,drawY-1.5,size*.55,Math.PI*1.05,Math.PI*1.72);ctx.stroke();
     }
   }
 
