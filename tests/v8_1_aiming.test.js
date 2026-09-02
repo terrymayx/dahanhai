@@ -1,0 +1,27 @@
+const fs=require('fs');
+const vm=require('vm');
+const assert=require('assert');
+const ctx={console,Math};ctx.globalThis=ctx;vm.createContext(ctx);
+for(const f of ['js/v8/00_v8_base.js','js/v8/10_ship_grid.js','js/v8/20_projectiles.js','js/v8/30_battle.js'])vm.runInContext(fs.readFileSync(f,'utf8'),ctx,{filename:f});
+const G=ctx.V8ShipGrid,B=ctx.V8Battle;
+assert.strictEqual(typeof B.setAim,'function','V8.1 battle must expose setAim');
+const state=B.newGame();
+const e=B.spawnEnemy(state,'sloop',{x:1150,y:560});
+const targetCell=e.cells.filter(c=>c.alive).sort((a,b)=>a.gy-b.gy||a.gx-b.gx)[0];
+const target=G.cellCenterWorld(e,targetCell);
+const aim=B.setAim(state,e,target.x,target.y);
+assert(aim&&aim.shipId===e.id,'aim stores target ship');
+assert.strictEqual(aim.gx,targetCell.gx);assert.strictEqual(aim.gy,targetCell.gy);
+state.shotIndex=0;
+B.firePlayer(state,e);
+const p=state.projectiles[state.projectiles.length-1];
+const expected=Math.atan2(target.y-430,target.x-610);
+const actual=Math.atan2(p.vy,p.vx);
+assert(Math.abs(actual-expected)<1e-6,'player cannon direction must use clicked local point, not ship center');
+for(const c of e.cells){c.alive=false;c.hp=0;}
+e.cells[0].alive=true;e.cells[0].hp=e.cells[0].maxHp;
+B.evaluateShip(state,e);
+assert.strictEqual(state.aim,null,'sinking aimed ship clears local aim');
+const input=fs.readFileSync('js/v8/50_input_loop.js','utf8');
+assert(input.includes('Battle.setAim'),'pointer input must forward local click to Battle.setAim');
+console.log('V8.1 aiming test passed');
