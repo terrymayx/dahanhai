@@ -14,9 +14,10 @@ const state=B.newGame();state.spawnT=999;state.playerFireT=999;
 const enemy=B.spawnEnemy(state,'gunship',{x:1280,y:560});
 B.startPlayerSalvo(state,enemy);
 B.update(state,.01);
-assert.strictEqual(state.projectiles.filter(p=>p.side==='player').length,1,'reduced salvo still starts with one shell');
+assert.strictEqual(state.shotIndex,1,'reduced salvo still starts with one shell');
 for(let i=0;i<30;i++)B.update(state,.05);
-assert.strictEqual(state.projectiles.filter(p=>p.side==='player').length,2,'one player salvo must now contain exactly two shells');
+assert.strictEqual(state.shotIndex,2,'one player salvo must now fire exactly two shells');
+assert.strictEqual(state.salvo,null,'two-shell salvo must finish cleanly');
 
 const feedback=B.newGame();
 B.emitCombatEvent(feedback,'impact_medium',{x:10,y:10});
