@@ -1,0 +1,16 @@
+const fs=require('fs');
+const vm=require('vm');
+const assert=require('assert');
+const ctx={console,Math,setTimeout,clearTimeout};ctx.globalThis=ctx;vm.createContext(ctx);
+for(const f of ['js/v8/00_v8_base.js','js/v8/10_ship_grid.js','js/v8/20_projectiles.js','js/v8/30_battle.js'])vm.runInContext(fs.readFileSync(f,'utf8'),ctx,{filename:f});
+const B=ctx.V8Battle,G=ctx.V8ShipGrid;
+const state=B.newGame();state.spawnT=999;
+const a=B.spawnEnemy(state,'sloop',{x:1280,y:420});
+const b=B.spawnEnemy(state,'gunship',{x:1390,y:680});
+B.setFocus(state,b);
+assert.strictEqual(B.targetForPlayer(state),b,'clicked enemy must stay the player target');
+for(const c of b.cells)c.alive=false;
+B.evaluateShip(state,b);
+assert.strictEqual(state.focus,a,'when the locked target sinks, lock must automatically move to the remaining active enemy');
+assert.strictEqual(B.targetForPlayer(state),a,'player fire must continue on the remaining enemy after auto-switch');
+console.log('V8.3 target lock tests passed');
