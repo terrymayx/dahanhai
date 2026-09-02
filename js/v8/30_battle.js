@@ -8,7 +8,7 @@
     gunship:{speed:60,fireMin:1.8,fireMax:2.7,gold:105},
     manowar:{speed:40,fireMin:2.2,fireMax:3.0,gold:190},
   };
-  const SALVO_COUNT=4,SALVO_GAP=.11,SALVO_ARCS=[158,174,188,166];
+  const SALVO_COUNT=4,SALVO_GAP=.11,SALVO_ARCS=[158,174,188,166],SALVO_ARC_VARIATION=[-10,4,12,-4];
   const SHIP_MASS={sloop:.75,gunship:1,manowar:1.35,player:1.45};
 
   function ensureShipPhysics(ship){
@@ -76,6 +76,15 @@
       vx:U.rand(-120,120)*power,vy:U.rand(-130,70)*power,
       t:0,dur:U.rand(.35,.72),r:U.rand(3,7)*Math.min(1.35,power)
     });
+  }
+
+  function addWaterSplashFx(state,x,y,size){
+    size=size||1;
+    state.fx.push({k:'waterSplash',x,y,t:0,dur:.42,r:22*size});
+    state.fx.push({k:'waterRing',x,y,t:0,dur:.72,r:24*size});
+    const n=Math.max(2,Math.min(4,Math.round(3*size)));
+    for(let i=0;i<n;i++)state.fx.push({k:'foam',x:x+U.rand(-12,12)*size,y:y+U.rand(-7,7)*size,t:0,dur:U.rand(.38,.7),r:U.rand(4,8)*size});
+    if(state.fx.length>260)state.fx.splice(0,state.fx.length-260);
   }
 
   function createDebrisClusters(state,ship,components){
@@ -217,6 +226,7 @@
       applyComponentDestroyed(state,ship,cell,pos,{triggered:new Set()});
     };
     state.onShipCritical=function(ship){evaluateShip(state,ship);};
+    state.onProjectileSplash=function(p,pos){addWaterSplashFx(state,pos.x,pos.y,.82);};
     return state;
   }
 
@@ -299,9 +309,10 @@
     if(!target)return;
     const ys=[430,560,690],y=ys[state.shotIndex++%ys.length];
     const x=610,aim=currentAimPoint(state,target);
-    const speed=900,v=aimVelocity(x,y,aim.x,aim.y,speed);
-    const flightTime=Math.hypot(aim.x-x,aim.y-y)/speed;
-    const arcHeight=Number.isInteger(volleyIndex)?SALVO_ARCS[volleyIndex%SALVO_ARCS.length]:170;
+    const speed=900,distance=Math.hypot(aim.x-x,aim.y-y),v=aimVelocity(x,y,aim.x,aim.y,speed);
+    const flightTime=distance/speed;
+    const variation=Number.isInteger(volleyIndex)?SALVO_ARC_VARIATION[volleyIndex%SALVO_ARC_VARIATION.length]:0;
+    const arcHeight=P.computeArcHeight('player',distance,variation);
     P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:24,side:'player',life:3,penetration:78,arcHeight,flightTime});
     state.fx.push({k:'muzzle',x:x+8,y,t:0,dur:.16});
   }
@@ -337,9 +348,10 @@
     const cell=randomAliveCell(state.player);if(!cell)return;
     const target=G.cellCenterWorld(state.player,cell);
     const x=e.x-e.gridWidth*e.cellSize*.45,y=e.y;
-    const speed=620,v=aimVelocity(x,y,target.x,target.y,speed);
-    const flightTime=Math.hypot(target.x-x,target.y-y)/speed;
-    P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:18,side:'enemy',life:4,arcHeight:105,flightTime});
+    const speed=620,distance=Math.hypot(target.x-x,target.y-y),v=aimVelocity(x,y,target.x,target.y,speed);
+    const flightTime=distance/speed;
+    const arcHeight=P.computeArcHeight('enemy',distance,0);
+    P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:18,side:'enemy',life:4,arcHeight,flightTime});
     state.fx.push({k:'muzzle',x,y,t:0,dur:.16});
   }
 
@@ -449,6 +461,6 @@
   root.V8Battle={
     ENEMY,newGame,spawnEnemy,spawnEnemyPair,activeEnemies,targetForPlayer,firePlayer,startPlayerSalvo,updatePlayerSalvo,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint,
     triggerPowderBlast,applyComponentDestroyed,recomputeShipSystems,createDebrisClusters,updateDebrisClusters,
-    ensureShipPhysics,applyHitImpulse,updateShipPhysics
+    ensureShipPhysics,applyHitImpulse,updateShipPhysics,addWaterSplashFx
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
