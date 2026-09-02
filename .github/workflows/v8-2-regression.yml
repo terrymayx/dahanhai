@@ -17,3 +17,5 @@ jobs:
         run: node tests/v8_2_material_penetration.test.js
       - name: V8.2 powder chain and systems
         run: node tests/v8_2_powder_chain.test.js
+      - name: V8.2 debris clusters
+        run: node tests/v8_2_debris_cluster.test.js
