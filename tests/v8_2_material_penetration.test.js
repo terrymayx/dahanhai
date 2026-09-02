@@ -9,20 +9,21 @@ assert(G.MATERIAL_RESISTANCE.beam>G.MATERIAL_RESISTANCE.hull);
 assert(G.MATERIAL_RESISTANCE.hull>G.MATERIAL_RESISTANCE.deck);
 assert.strictEqual(P.PEN_COST,G.MATERIAL_RESISTANCE,'projectiles must use Grid material table');
 
-function playerHit(type){
+function playerBreaches(type){
   const ship=G.createTemplateShip('gunship','enemy',1000,500);ship.id='t';
   const first=G.firstCellAlongSegment(ship,620,500,1350,500);assert(first);
-  first.type=type;first.material=type;first.hp=first.maxHp=999;
+  first.type=type;first.material=type;first.maxHp=999;first.hp=1;
   const state={projectiles:[],enemies:[ship],player:null};
   P.spawn(state,{x:620,y:500,vx:1200,vy:0,damage:1,side:'player',life:2,penetration:60});
   P.updateAll(state,.34);
+  assert.strictEqual(first.alive,false,`${type} sample must be breached so V8.5 can continue penetration`);
   return state.projectiles[0]||null;
 }
-const deck=playerHit('deck');
-assert(deck,'deck hit with 60 penetration should survive');
+const deck=playerBreaches('deck');
+assert(deck,'breached deck with 60 penetration should continue');
 assert.strictEqual(deck.penetration,60-G.MATERIAL_RESISTANCE.deck);
-const beam=playerHit('beam');
-assert(beam,'beam hit still has 8 penetration after one hit');
+const beam=playerBreaches('beam');
+assert(beam,'breached beam still has penetration after material cost');
 assert.strictEqual(beam.penetration,60-G.MATERIAL_RESISTANCE.beam);
 
 const player=G.createTemplateShip('player','player',1000,500);player.id='player';
@@ -32,4 +33,4 @@ const enemyState={projectiles:[],enemies:[],player};
 P.spawn(enemyState,{x:620,y:500,vx:1200,vy:0,damage:1,side:'enemy',life:2,penetration:60});
 P.updateAll(enemyState,.34);
 assert.strictEqual(enemyState.projectiles.length,0,'enemy projectile must stop after one cell');
-console.log('V8.2 material penetration tests passed');
+console.log('V8.2 material penetration compatibility tests passed');
