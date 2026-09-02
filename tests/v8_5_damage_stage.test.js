@@ -2,7 +2,7 @@ const fs=require('fs');
 const vm=require('vm');
 const assert=require('assert');
 const ctx={console,Math};ctx.globalThis=ctx;vm.createContext(ctx);
-vm.runInContext(fs.readFileSync('js/v8/10_ship_grid.js','utf8'),ctx,{filename:'10_ship_grid.js'});
+for(const f of ['js/v8/10_ship_grid.js','js/v8/36_damage_flooding.js'])vm.runInContext(fs.readFileSync(f,'utf8'),ctx,{filename:f});
 const G=ctx.V8ShipGrid;
 assert.strictEqual(typeof G.damageStage,'function','V8.5 must expose damageStage(cell)');
 const cell={alive:true,maxHp:60,hp:60};
