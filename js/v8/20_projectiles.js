@@ -3,7 +3,7 @@
   const Grid=root.V8ShipGrid;
   if(!Grid)throw new Error('V8ShipGrid must load before V8Projectile');
 
-  const PEN_COST={hull:34,deck:24,core:42,mast:28,cannon:28,powder:28};
+  const PEN_COST=Grid.MATERIAL_RESISTANCE;
 
   function spawn(state,opts){
     const side=opts.side||'player';
@@ -50,7 +50,8 @@
         if(ratio<=threshold&&typeof state.onShipCritical==='function')state.onShipCritical(best,ratio,p);
 
         if(p.side==='player'){
-          p.penetration-=PEN_COST[bestCell.type]||28;
+          const material=bestCell.material||bestCell.type;
+          p.penetration-=PEN_COST[material]||28;
           if(p.penetration>0){
             const speed=Math.hypot(p.vx,p.vy)||1,ux=p.vx/speed,uy=p.vy/speed;
             p.x=hitPos.x+ux*best.cellSize*.62;
