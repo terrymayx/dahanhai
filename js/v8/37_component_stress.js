@@ -98,12 +98,90 @@
     return ship;
   }
 
+  function applyProgressiveSystems(ship){
+    if(!ship)return ship;
+    refreshShip(ship);
+    ship.rudderAlive=ship.systemRatios.rudder>0;
+    ship.mastAlive=ship.systemRatios.mast>0;
+    ship.cannonsAlive=(ship.cells||[]).filter(c=>c.alive&&c.type==='cannon').length;
+    if(B&&ship.side==='enemy'){
+      const spec=(B.ENEMY&&B.ENEMY[ship.kind])||(B.ENEMY&&B.ENEMY.sloop);
+      if(spec){
+        ship.baseSpeed=spec.speed;
+        ship.speed=spec.speed*ship.mastEfficiency*ship.rudderEfficiency;
+      }
+    }
+    return ship;
+  }
+
+  function refreshStateShips(state){
+    if(!state)return;
+    applyProgressiveSystems(state.player);
+    for(const ship of state.enemies||[])applyProgressiveSystems(ship);
+  }
+
+  function clearAttackMotion(ship){
+    if(B&&typeof B.clearAttackMotion==='function')B.clearAttackMotion(ship);
+  }
+
+  function installBattleHooks(){
+    if(!B||B.__v86ComponentStressInstalled)return;
+    B.__v86ComponentStressInstalled=true;
+
+    const originalRecompute=B.recomputeShipSystems;
+    B.recomputeShipSystems=function(ship){
+      if(typeof originalRecompute==='function')originalRecompute(ship);
+      return applyProgressiveSystems(ship);
+    };
+
+    const originalSpawnEnemy=B.spawnEnemy;
+    B.spawnEnemy=function(state,kind,opts){
+      const ship=originalSpawnEnemy(state,kind,opts);
+      return applyProgressiveSystems(ship);
+    };
+
+    const originalNewGame=B.newGame;
+    B.newGame=function(){
+      const state=originalNewGame();
+      refreshStateShips(state);
+      const originalHit=state.onCellHit;
+      state.onCellHit=function(ship,cell,pos,res,p){
+        if(typeof originalHit==='function')originalHit(ship,cell,pos,res,p);
+        applyProgressiveSystems(ship);clearAttackMotion(ship);state.shake=0;
+      };
+      const originalDestroyed=state.onCellDestroyed;
+      state.onCellDestroyed=function(ship,cell,pos,p){
+        if(typeof originalDestroyed==='function')originalDestroyed(ship,cell,pos,p);
+        applyProgressiveSystems(ship);clearAttackMotion(ship);state.shake=0;
+      };
+      return state;
+    };
+
+    const originalUpdate=B.update;
+    B.update=function(state,dt){
+      const active=state&&state.state==='playing'&&!state.paused&&!(state.hitStop>0);
+      const step=Math.min(.05,Math.max(0,dt||0));
+      if(active){
+        refreshStateShips(state);
+        for(const ship of state.enemies||[]){
+          if(ship.state!=='active'||!Number.isFinite(ship.shotT))continue;
+          ship.shotT+=step*(1-ship.cannonEfficiency);
+        }
+      }
+      originalUpdate(state,dt);
+      if(state){
+        refreshStateShips(state);
+        state.shake=0;
+        clearAttackMotion(state.player);
+        for(const ship of state.enemies||[])clearAttackMotion(ship);
+      }
+    };
+  }
+
   const api={
     SYSTEM_TYPES,componentRatio,componentStage,shipSystemRatios,structureStressStage,
-    powderDangerFor,cellStress,refreshShip
+    powderDangerFor,cellStress,refreshShip,applyProgressiveSystems,refreshStateShips
   };
   root.V8ComponentStress=api;
-
-  // Battle hooks are added in later V8.6 tasks; keep the pure model usable in tests.
-  if(B)api.battle=B;
+  installBattleHooks();
 })(typeof globalThis!=='undefined'?globalThis:this);
