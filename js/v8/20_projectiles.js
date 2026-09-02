@@ -7,12 +7,17 @@
 
   function spawn(state,opts){
     const side=opts.side||'player';
+    const flightTime=Math.max(.08,opts.flightTime||0);
+    const arcHeight=Math.max(0,opts.arcHeight||0);
+    const gravity=arcHeight>0?8*arcHeight/(flightTime*flightTime):0;
+    const initialVz=arcHeight>0?4*arcHeight/flightTime:0;
     const p={
       x:opts.x,y:opts.y,vx:opts.vx||0,vy:opts.vy||0,
       damage:opts.damage||24,side,life:opts.life||3,
       radius:opts.radius||5,dead:false,
       penetration:opts.penetration==null?(side==='player'?78:0):opts.penetration,
-      hitCells:Object.create(null)
+      hitCells:Object.create(null),
+      z:0,prevZ:0,vz:initialVz,initialVz,gravity,arcHeight,flightTime,arcAge:0
     };
     state.projectiles.push(p);return p;
   }
@@ -22,11 +27,21 @@
     return state.player&&state.player.state==='active'?[state.player]:[];
   }
 
+  function updateArc(p,dt){
+    p.prevZ=p.z||0;
+    if(!(p.arcHeight>0&&p.flightTime>0)){p.z=0;p.vz=0;return;}
+    p.arcAge=Math.min(p.flightTime,(p.arcAge||0)+dt);
+    const t=p.arcAge;
+    p.z=Math.max(0,p.initialVz*t-.5*p.gravity*t*t);
+    p.vz=p.initialVz-p.gravity*t;
+  }
+
   function updateAll(state,dt){
     const out=[];
     for(const p of state.projectiles){
       if(p.dead)continue;
       const x0=p.x,y0=p.y;
+      updateArc(p,dt);
       p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
       let best=null,bestCell=null,bestD=Infinity;
       for(const ship of targetsFor(state,p)){
@@ -64,5 +79,5 @@
     state.projectiles=out;
   }
 
-  root.V8Projectile={PEN_COST,spawn,updateAll};
+  root.V8Projectile={PEN_COST,spawn,updateArc,updateAll};
 })(typeof globalThis!=='undefined'?globalThis:this);
