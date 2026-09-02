@@ -225,13 +225,30 @@
     return seen;
   }
 
-  function detachDisconnected(ship){
-    const keep=mainConnectedKeys(ship),detached=[];
-    if(!ship||!ship.cells)return detached;
-    for(const c of ship.cells){
-      if(!c.alive||keep.has(key(c.gx,c.gy)))continue;
-      c.alive=false;c.hp=0;detached.push(c);
+  function detachDisconnectedComponents(ship){
+    if(!ship||!ship.cells)return [];
+    const keep=mainConnectedKeys(ship),seen=new Set(),components=[];
+    for(const start of ship.cells){
+      const sk=key(start.gx,start.gy);
+      if(!start.alive||keep.has(sk)||seen.has(sk))continue;
+      const q=[start],comp=[];seen.add(sk);
+      for(let i=0;i<q.length;i++){
+        const cur=q[i];comp.push(cur);
+        for(const [gx,gy] of [[cur.gx-1,cur.gy],[cur.gx+1,cur.gy],[cur.gx,cur.gy-1],[cur.gx,cur.gy+1]]){
+          const k=key(gx,gy),next=ship.cellMap[k];
+          if(!next||!next.alive||keep.has(k)||seen.has(k))continue;
+          seen.add(k);q.push(next);
+        }
+      }
+      for(const c of comp){c.alive=false;c.hp=0;}
+      components.push(comp);
     }
+    return components;
+  }
+
+  function detachDisconnected(ship){
+    const components=detachDisconnectedComponents(ship),detached=[];
+    for(const comp of components)detached.push(...comp);
     return detached;
   }
 
@@ -261,6 +278,6 @@
   root.V8ShipGrid={
     SPECS,CELL_HP,CELL_WEIGHT,MATERIAL_RESISTANCE,createTemplateShip,worldToLocal,localToWorld,
     localToGrid,cellCenterLocal,cellCenterWorld,damageCell,integrity,connectedComponents,
-    mainConnectedKeys,detachDisconnected,firstCellAlongSegment,pointHitsLiveCell
+    mainConnectedKeys,detachDisconnectedComponents,detachDisconnected,firstCellAlongSegment,pointHitsLiveCell
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
