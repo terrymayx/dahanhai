@@ -1,0 +1,15 @@
+name: V8.4.2 Durability TDD
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Durability contract
+        run: node tests/v8_4_2_block_durability_no_recoil.test.js
