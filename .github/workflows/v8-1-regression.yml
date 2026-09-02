@@ -19,3 +19,5 @@ jobs:
         run: node tests/v8_1_aiming.test.js
       - name: V8.1 feedback
         run: node tests/v8_1_feedback_contract.test.js
+      - name: V8.1 entry
+        run: node tests/v8_1_entry.test.js
