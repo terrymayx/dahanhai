@@ -120,7 +120,7 @@
     dt=Math.min(.05,Math.max(0,dt));state.time+=dt;
 
     state.spawnT-=dt;
-    if(state.spawnT<=0&&activeEnemies(state).length<8){
+    if(state.spawnT<=0&&activeEnemies(state).length<1){
       spawnEnemy(state,chooseSpawnKind(state));
       state.spawnT=C.ENEMY_SPAWN_INTERVAL*Math.max(.62,1-state.time/160);
     }
