@@ -101,7 +101,8 @@
     for(const cell of ship.cells){if(!cell.alive)continue;drawCell(ship,cell);}
     ctx.restore();ctx.globalAlpha=1;
     if(ship.focus&&ship.state==='active'){
-      const b=shipBounds(ship);ctx.save();ctx.strokeStyle='#ffd43b';ctx.lineWidth=3;ctx.setLineDash([12,9]);ctx.beginPath();ctx.ellipse(ship.x,ship.y,b.w*.58,b.h*.78,ship.rotation,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+      const b=shipBounds(ship);ctx.save();ctx.strokeStyle='#ffd43b';ctx.lineWidth=4;ctx.setLineDash([12,9]);ctx.beginPath();ctx.ellipse(ship.x,ship.y,b.w*.60,b.h*.82,ship.rotation,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+      text('锁定目标',ship.x,ship.y-b.h*.92-34,20,'#ffe37a','#532b18',4);
     }
     if(ship.side==='enemy'&&ship.state==='active'){
       const pct=Math.round(Grid.integrity(ship)*100);text(`结构 ${pct}%`,ship.x,ship.y-ship.gridHeight*ship.cellSize*.72-18,21,'#fff','#173047',4);
@@ -206,11 +207,11 @@
 
   function drawHud(state){
     ctx.fillStyle='rgba(5,30,48,.72)';roundRect(26,24,650,112,18);ctx.fill();
-    text('V8.2 · 部位破坏与连锁毁伤',50,55,27,'#fff',null,0,'left');
+    text('V8.3 · 双舰编队与炮火齐射',50,55,27,'#fff',null,0,'left');
     text(`我方结构 ${Math.round(Grid.integrity(state.player)*100)}%`,50,96,23,'#dff7ff',null,0,'left');
     text(`击沉 ${state.kills}   金币 ${state.gold}`,650,96,22,'#ffd65a','#173047',3,'right');
-    text('击穿外壳 → 瞄准主梁 / 火药舱 / 舵机 / 桅杆 / 炮位',C.W/2,42,23,'#ffffff','#17435a',4);
-    text('火药舱会连锁爆炸 · 打断主结构会整块脱落并沉入海里',C.W/2,C.H-38,21,'#e9f8ff','#17435a',4);
+    text('点击锁定目标 → 4 发重炮连续齐射 → 沿同一弱点持续拆船',C.W/2,42,23,'#ffffff','#17435a',4);
+    text('双舰异型错位编队 · 敌舰炮火错峰 · 锁定舰沉没后自动切换',C.W/2,C.H-38,21,'#e9f8ff','#17435a',4);
 
     ctx.fillStyle='rgba(5,30,48,.68)';roundRect(C.W-118,25,88,60,14);ctx.fill();text(state.paused?'▶':'Ⅱ',C.W-74,55,28,'#fff');
     if(state.state==='lose'){
