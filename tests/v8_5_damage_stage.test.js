@@ -1,0 +1,13 @@
+const fs=require('fs');
+const vm=require('vm');
+const assert=require('assert');
+const ctx={console,Math};ctx.globalThis=ctx;vm.createContext(ctx);
+vm.runInContext(fs.readFileSync('js/v8/10_ship_grid.js','utf8'),ctx,{filename:'10_ship_grid.js'});
+const G=ctx.V8ShipGrid;
+assert.strictEqual(typeof G.damageStage,'function','V8.5 must expose damageStage(cell)');
+const cell={alive:true,maxHp:60,hp:60};
+assert.strictEqual(G.damageStage(cell),'intact');
+cell.hp=45;assert.strictEqual(G.damageStage(cell),'cracked');
+cell.hp=30;assert.strictEqual(G.damageStage(cell),'critical');
+cell.hp=0;cell.alive=false;assert.strictEqual(G.damageStage(cell),'destroyed');
+console.log('V8.5 damage stage tests passed');
