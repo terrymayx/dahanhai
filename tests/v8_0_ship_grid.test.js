@@ -40,4 +40,18 @@ assert(second&&second!==first,'the next shot enters through the newly exposed ce
 const local=G.worldToLocal(ship,ship.x,ship.y);
 assert(Math.abs(local.x)<1e-6&&Math.abs(local.y)<1e-6,'ship center maps to local origin');
 
-console.log('V8.0 ShipGrid tests passed');
+const projectileSrc=fs.readFileSync('js/v8/20_projectiles.js','utf8');
+vm.runInContext(projectileSrc,ctx,{filename:'20_projectiles.js'});
+const P=ctx.V8Projectile;
+assert(P,'V8Projectile must be exported on globalThis');
+const target=G.createTemplateShip('gunship','enemy',1000,500);
+const hpBefore=new Map(target.cells.map(c=>[`${c.gx},${c.gy}`,c.hp]));
+const state={projectiles:[],enemies:[target],player:null};
+P.spawn(state,{x:620,y:500,vx:1200,vy:0,damage:24,side:'player',life:2});
+P.updateAll(state,.5);
+const changed=target.cells.filter(c=>c.hp!==hpBefore.get(`${c.gx},${c.gy}`));
+assert.strictEqual(changed.length,1,'one projectile can damage only the first live cell in its path');
+assert.strictEqual(changed[0].maxHp-changed[0].hp,24,'projectile damage is applied to that first cell');
+assert.strictEqual(state.projectiles.length,0,'projectile is consumed on hit');
+
+console.log('V8.0 ShipGrid + projectile tests passed');
