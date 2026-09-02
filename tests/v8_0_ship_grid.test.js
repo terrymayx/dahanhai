@@ -50,8 +50,9 @@ const state={projectiles:[],enemies:[target],player:null};
 P.spawn(state,{x:620,y:500,vx:1200,vy:0,damage:24,side:'player',life:2});
 P.updateAll(state,.5);
 const changed=target.cells.filter(c=>c.hp!==hpBefore.get(`${c.gx},${c.gy}`));
-assert.strictEqual(changed.length,1,'one projectile can damage only the first live cell in its path');
+assert.strictEqual(changed.length,1,'one collision step damages the first live cell in its path');
 assert.strictEqual(changed[0].maxHp-changed[0].hp,24,'projectile damage is applied to that first cell');
-assert.strictEqual(state.projectiles.length,0,'projectile is consumed on hit');
+assert.strictEqual(state.projectiles.length,1,'V8.1 player projectile remains active while penetration is left');
+assert(state.projectiles[0].penetration<78,'first-cell impact consumes penetration power');
 
-console.log('V8.0 ShipGrid + projectile tests passed');
+console.log('V8 ShipGrid + first-hit projectile tests passed');
