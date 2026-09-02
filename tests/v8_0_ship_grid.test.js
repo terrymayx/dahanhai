@@ -44,6 +44,9 @@ const projectileSrc=fs.readFileSync('js/v8/20_projectiles.js','utf8');
 vm.runInContext(projectileSrc,ctx,{filename:'20_projectiles.js'});
 const P=ctx.V8Projectile;
 assert(P,'V8Projectile must be exported on globalThis');
+
+// V8.5 armor gate: a durable first cell absorbs the shell instead of allowing
+// penetration to continue merely because the projectile still has power.
 const target=G.createTemplateShip('gunship','enemy',1000,500);
 const hpBefore=new Map(target.cells.map(c=>[`${c.gx},${c.gy}`,c.hp]));
 const state={projectiles:[],enemies:[target],player:null};
@@ -52,7 +55,18 @@ P.updateAll(state,.5);
 const changed=target.cells.filter(c=>c.hp!==hpBefore.get(`${c.gx},${c.gy}`));
 assert.strictEqual(changed.length,1,'one collision step damages the first live cell in its path');
 assert.strictEqual(changed[0].maxHp-changed[0].hp,24,'projectile damage is applied to that first cell');
-assert.strictEqual(state.projectiles.length,1,'V8.1 player projectile remains active while penetration is left');
-assert(state.projectiles[0].penetration<78,'first-cell impact consumes penetration power');
+assert.strictEqual(state.projectiles.length,0,'V8.5 intact armor stops a non-breaching player projectile');
 
-console.log('V8 ShipGrid + first-hit projectile tests passed');
+// Once that same first layer is weakened enough to be breached, the existing
+// V8.1 penetration mechanic remains active and consumes the material cost.
+const breachedTarget=G.createTemplateShip('gunship','enemy',1000,500);breachedTarget.id='breach';
+const breachCell=G.firstCellAlongSegment(breachedTarget,620,500,1350,500);assert(breachCell);
+breachCell.hp=Math.min(20,breachCell.hp);
+const breachState={projectiles:[],enemies:[breachedTarget],player:null};
+P.spawn(breachState,{x:620,y:500,vx:1200,vy:0,damage:24,side:'player',life:2,penetration:78});
+P.updateAll(breachState,.5);
+assert.strictEqual(breachCell.alive,false,'weakened first cell is breached');
+assert.strictEqual(breachState.projectiles.length,1,'player projectile remains active after a breach while penetration is left');
+assert(breachState.projectiles[0].penetration<78,'breaching impact consumes penetration power');
+
+console.log('V8 ShipGrid + V8.5 first-hit projectile compatibility tests passed');
