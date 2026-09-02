@@ -59,10 +59,14 @@ const ctx={
   figureBody:()=>{},figureHead:()=>{},
   ctx:{save:()=>{},restore:()=>{},translate:()=>{},rotate:()=>{},globalAlpha:1},
   update:dt=>{
+    const before=ctx.g.boarders.slice();
     if(ctx.hitTarget){
       ctx.damageBoarder(ctx.hitTarget,ctx.hitDamage,ctx.hitTarget.x,ctx.hitTarget.y);
       ctx.wasPresentDuringInner=ctx.g.boarders.includes(ctx.hitTarget);
     }
+    // Reproduce the old core hp>0 filter followed by V6.8 snapshot recycling.
+    ctx.g.boarders=ctx.g.boarders.filter(b=>b.hp>0);
+    for(const b of before)if(!ctx.g.boarders.includes(b))ctx.boarderPool.release(b);
   }
 };
 vm.createContext(ctx);
@@ -111,15 +115,15 @@ ctx.v70RefreshFrameCache();
 assert.equal(ctx.v70DesiredFrontLane(sailor2),0,'front sailor must reinforce the highest-pressure lane');
 assert.equal(ctx.chooseV70CrewTarget(sailor2).assaultLane,0,'front sailor target selection must follow pressure lane');
 
-// Lethal damage during the wrapped old update must stay in g.boarders until old/V6.8 update finishes.
+// Lethal damage must survive the inner hp>0 filter/V6.8 recycler, then become downed after inner update.
 poolReleased=0;overboardFx=0;
 const lethal={x:500,y:560,hp:20,max:20,state:'fight',assaultLane:1,band:'#333'};
 ctx.g.boarders=[lethal];ctx.g.v70Downed=[];ctx.hitTarget=lethal;ctx.hitDamage=30;ctx.wasPresentDuringInner=false;
 ctx.update(.016);
 assert.equal(ctx.wasPresentDuringInner,true,'death must not splice boarder while inner update/V6.8 snapshot is active');
 assert.equal(ctx.g.boarders.includes(lethal),false,'death must detach after inner update returns');
-assert.equal(ctx.g.v70Downed.length,1,'deterministic death should become downed body');
-assert.equal(poolReleased,0,'downed body must not be released before its timer expires');
+assert.equal(ctx.g.v70Downed.length,1,'deterministic death should become downed body after V6.8 recycler');
+assert.equal(poolReleased,0,'lethal boarder must not be recycled before becoming downed');
 ctx.hitTarget=null;ctx.updateV70Downed(1);
 assert.equal(ctx.g.v70Downed.length,0,'expired downed body must be removed');
 assert.equal(poolReleased,1,'expired downed body must be returned to boarder pool exactly once');
