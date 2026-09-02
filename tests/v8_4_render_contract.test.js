@@ -7,8 +7,8 @@ for(const token of ['ship.physics','bobPhase','offsetX','offsetY','roll','p.trai
 }
 assert(render.includes('V8.4 · 物理质感重构'),'HUD must identify V8.4');
 assert(html.includes('大航海时代 V8.4 · 物理质感重构'),'page title must identify V8.4');
-for(const f of ['00_v8_base.js','10_ship_grid.js','20_projectiles.js','30_battle.js','40_render.js','50_input_loop.js']){
-  assert(html.includes(`js/v8/${f}?v=8.4.0`),`${f} must use V8.4.0 cache key`);
+for(const f of ['00_v8_base.js','10_ship_grid.js','20_projectiles.js','30_battle.js','35_combat_tuning.js','40_render.js','50_input_loop.js']){
+  assert(html.includes(`js/v8/${f}?v=8.4.1`),`${f} must use V8.4.1 cache key`);
 }
 assert(!html.includes('31_v73_proximity_boarding.js'),'V8.4 entry must not load legacy boarding');
 assert(fs.existsSync('legacy_v7.html'),'legacy V7 page must remain available');
