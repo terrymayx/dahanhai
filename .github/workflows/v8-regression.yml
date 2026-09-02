@@ -11,11 +11,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: V8 ShipGrid + Projectile
-        run: node tests/v8_0_ship_grid.test.js
-      - name: V8 Battle
-        run: node tests/v8_0_battle.test.js
-      - name: V8 Renderer
-        run: node tests/v8_0_render_contract.test.js
-      - name: V8 Entry
-        run: node tests/v8_0_entry.test.js
+      - name: V8 tests
+        run: |
+          node tests/v8_0_ship_grid.test.js
+          node tests/v8_0_battle.test.js
+          node tests/v8_0_render_contract.test.js
+          node tests/v8_0_entry.test.js
+      - name: JavaScript syntax
+        run: |
+          for f in js/*.js js/v8/*.js; do
+            [ -f "$f" ] && node --check "$f"
+          done
+      - name: Legacy V6/V7 regression
+        run: |
+          for f in tests/v6*.test.js tests/v7*.test.js; do
+            [ -f "$f" ] && node "$f"
+          done
