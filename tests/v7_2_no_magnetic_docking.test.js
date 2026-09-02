@@ -7,6 +7,7 @@ const index=read('index.html');
 const path='js/29_v72_no_magnetic_docking.js';
 assert(fs.existsSync(path),'V7.2 no-magnetic-docking layer must exist');
 const v72=read(path);
+const v72Code=v72.replace(/\/\*[\s\S]*?\*\//g,'').replace(/\/\/.*$/gm,'');
 
 assert.match(index,/V7\.2/,'page must publish V7.2');
 assert.match(index,/js\/29_v72_no_magnetic_docking\.js/,'index must load V7.2 layer');
@@ -15,7 +16,7 @@ assert.ok(index.indexOf('js/29_v72_no_magnetic_docking.js')<index.indexOf('js/60
 assert.match(v72,/const\s+V72_LOCK_GAP\s*=\s*2\b/,'V7.2 lock gap must be 2px');
 assert.match(v72,/function\s+v72DockingGap/,'v72DockingGap missing');
 assert.match(v72,/function\s+v72PhysicalContactReady/,'v72PhysicalContactReady missing');
-assert.doesNotMatch(v72,/e\.x\s*=\s*targetX/,'V7.2 lock must never snap enemy X to the rail');
+assert.doesNotMatch(v72Code,/e\.x\s*=\s*targetX/,'V7.2 lock must never snap enemy X to the rail');
 
 const g={enemies:[]};
 const ctx={
