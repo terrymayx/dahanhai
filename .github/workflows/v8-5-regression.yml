@@ -15,6 +15,4 @@ jobs:
         shell: bash
         run: |
           set -e
-          node tests/v8_5_damage_stage.test.js
-          node tests/v8_5_penetration_gate.test.js
-          node tests/v8_5_flooding.test.js
+          for t in tests/v8_5*.test.js; do echo "== $t =="; node "$t"; done
