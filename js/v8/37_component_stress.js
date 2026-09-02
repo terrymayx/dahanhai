@@ -12,6 +12,7 @@
     beam:['beam','core'],
     powder:['powder']
   };
+  const STRESS_DAMAGE_TYPES=new Set(['hull','deck','beam','core']);
 
   function clamp01(v){return Math.max(0,Math.min(1,Number.isFinite(v)?v:0));}
 
@@ -124,6 +125,44 @@
     if(B&&typeof B.clearAttackMotion==='function')B.clearAttackMotion(ship);
   }
 
+  function stressDamageAmount(stress,dist){
+    const falloff=Math.max(.35,1-dist*.25);
+    return (4+clamp01(stress)*12)*falloff;
+  }
+
+  function applyStressRupture(state,ship,sourceCell,pos){
+    const result={destroyed:[],components:[],stress:0};
+    if(!state||!ship||!sourceCell||(sourceCell.type!=='beam'&&sourceCell.type!=='core'))return result;
+    refreshShip(ship);
+    const stress=ship.structureStress||0;
+    result.stress=stress;
+    if(stress<.34)return result;
+
+    for(const cell of ship.cells||[]){
+      if(!cell.alive||!STRESS_DAMAGE_TYPES.has(cell.type))continue;
+      const dist=Math.abs(cell.gx-sourceCell.gx)+Math.abs(cell.gy-sourceCell.gy);
+      if(dist>2)continue;
+      const damage=stressDamageAmount(stress,dist);
+      const canFail=componentStage(cell)==='critical';
+      const actual=(!canFail&&cell.hp-damage<=0)?Math.max(0,cell.hp-1):damage;
+      if(!(actual>0))continue;
+      const res=G.damageCell(ship,cell,actual);
+      if(res.destroyed)result.destroyed.push(cell);
+    }
+
+    result.components=G.detachDisconnectedComponents(ship);
+    if(result.components.length&&B&&typeof B.createDebrisClusters==='function')B.createDebrisClusters(state,ship,result.components);
+    if(!state.fx)state.fx=[];
+    const point=pos||G.cellCenterWorld(ship,sourceCell);
+    let detached=0;
+    for(const comp of result.components)detached+=comp.length;
+    state.fx.push({k:'stressRupture',x:point.x,y:point.y,t:0,dur:.58,r:42+Math.min(100,detached*6+stress*36),stress});
+    applyProgressiveSystems(ship);
+    state.shake=0;
+    clearAttackMotion(ship);
+    return result;
+  }
+
   function installBattleHooks(){
     if(!B||B.__v86ComponentStressInstalled)return;
     B.__v86ComponentStressInstalled=true;
@@ -152,6 +191,7 @@
       const originalDestroyed=state.onCellDestroyed;
       state.onCellDestroyed=function(ship,cell,pos,p){
         if(typeof originalDestroyed==='function')originalDestroyed(ship,cell,pos,p);
+        if(cell&&(cell.type==='beam'||cell.type==='core'))applyStressRupture(state,ship,cell,pos);
         applyProgressiveSystems(ship);clearAttackMotion(ship);state.shake=0;
       };
       return state;
@@ -180,7 +220,8 @@
 
   const api={
     SYSTEM_TYPES,componentRatio,componentStage,shipSystemRatios,structureStressStage,
-    powderDangerFor,cellStress,refreshShip,applyProgressiveSystems,refreshStateShips
+    powderDangerFor,cellStress,refreshShip,applyProgressiveSystems,refreshStateShips,
+    stressDamageAmount,applyStressRupture
   };
   root.V8ComponentStress=api;
   installBattleHooks();
