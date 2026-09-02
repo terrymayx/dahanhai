@@ -28,7 +28,9 @@
       if(p.x>C.W/2-190&&p.x<C.W/2+190&&p.y>C.H/2&&p.y<C.H/2+130)restart();
       return;
     }
-    Battle.setFocus(state,pickEnemy(p));
+    const enemy=pickEnemy(p);
+    Battle.setFocus(state,enemy);
+    Battle.setAim(state,enemy,p.x,p.y);
   }
 
   canvas.addEventListener('pointerdown',onPointer,{passive:false});
