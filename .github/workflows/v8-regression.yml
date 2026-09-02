@@ -17,3 +17,5 @@ jobs:
         run: node tests/v8_0_battle.test.js
       - name: V8 Renderer
         run: node tests/v8_0_render_contract.test.js
+      - name: V8 Entry
+        run: node tests/v8_0_entry.test.js
