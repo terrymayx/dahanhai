@@ -1,9 +1,11 @@
 (function(root){
   'use strict';
-  const C=root.V8Config,G=root.V8ShipGrid,R=root.V8Render;
-  if(!C||!G||!R)throw new Error('V8.5.1 damage overlay requires config, grid and renderer');
+  const C=root.V8Config,G=root.V8ShipGrid,R=root.V8Render,S=root.V8ComponentStress||null;
+  if(!C||!G||!R)throw new Error('V8.6 damage overlay requires config, grid and renderer');
 
   const originalDraw=R.draw;
+  const TYPE_LABEL={hull:'船壳',deck:'甲板',beam:'主梁',core:'主梁',powder:'火药舱',rudder:'舵机',mast:'桅杆',cannon:'炮位'};
+  const STAGE_LABEL={healthy:'完整',damaged:'受损',critical:'危急',destroyed:'已毁'};
 
   function shipsOf(state){return state?[state.player,...(state.enemies||[])].filter(Boolean):[];}
 
@@ -12,6 +14,40 @@
     const dpr=Math.min(root.devicePixelRatio||1,2),scale=Math.min(iw/C.W,ih/C.H);
     const ox=(iw-C.W*scale)/2,oy=(ih-C.H*scale)/2;
     ctx.setTransform(dpr,0,0,dpr,0,0);ctx.translate(ox,oy);ctx.scale(scale,scale);
+  }
+
+  function componentStage(cell){
+    if(S&&typeof S.componentStage==='function')return S.componentStage(cell);
+    const stage=G.damageStage?G.damageStage(cell):'intact';
+    if(stage==='destroyed')return 'destroyed';
+    if(stage==='critical')return 'critical';
+    if(stage==='cracked')return 'damaged';
+    return 'healthy';
+  }
+
+  function resolveAimCell(state){
+    if(!state||!state.aim)return null;
+    const aim=state.aim;
+    const ship=shipsOf(state).find(s=>s.id===aim.shipId);
+    if(!ship)return null;
+    const key=aim.gx+','+aim.gy;
+    const cell=(ship.cellMap&&ship.cellMap[key])||(ship.cells||[]).find(c=>c.gx===aim.gx&&c.gy===aim.gy);
+    return cell?{ship,cell}:null;
+  }
+
+  function formatAimInfo(ship,cell){
+    if(!ship||!cell)return {primary:'',detail:''};
+    const type=TYPE_LABEL[cell.type]||'结构';
+    const stage=componentStage(cell);
+    const hp=Math.max(0,Math.round(cell.hp||0)),max=Math.max(1,Math.round(cell.maxHp||cell.hp||1));
+    const primary=`${type} ${hp} / ${max} · ${STAGE_LABEL[stage]||'完整'}`;
+    let detail='';
+    if(cell.type==='cannon')detail=`炮效 ${Math.round((Number.isFinite(ship.cannonEfficiency)?ship.cannonEfficiency:1)*100)}%`;
+    else if(cell.type==='mast')detail=`帆效 ${Math.round((Number.isFinite(ship.mastEfficiency)?ship.mastEfficiency:1)*100)}%`;
+    else if(cell.type==='rudder')detail=`舵效 ${Math.round((Number.isFinite(ship.rudderEfficiency)?ship.rudderEfficiency:1)*100)}%`;
+    else if(cell.type==='beam'||cell.type==='core')detail=`结构应力 ${Math.round((ship.structureStress||0)*100)}%`;
+    else if(cell.type==='powder'&&(stage==='critical'||(ship.powderDanger||0)>=1))detail='危险';
+    return {primary,detail,stage,type};
   }
 
   function drawCrack(ctx,x,y,s,stage,seed){
@@ -34,37 +70,68 @@
     }
   }
 
+  function drawStress(ctx,x,y,s,stress,seed){
+    if(!(stress>.08))return;
+    const a=Math.min(.72,.12+stress*.58),j=(seed%7-3)*.04;
+    ctx.strokeStyle=`rgba(91,38,28,${a})`;ctx.lineWidth=1+stress*1.4;
+    ctx.beginPath();ctx.moveTo(x-s*.34,y+s*j);ctx.lineTo(x-s*.06,y-s*.16);ctx.lineTo(x+s*.32,y+s*.18);ctx.stroke();
+  }
+
   function drawShipDamage(ctx,ship,state){
     if(!ship||ship.state==='gone')return;
     const pose=R.shipVisualPose(ship,state),s=ship.cellSize;
     ctx.save();ctx.translate(pose.x,pose.y);ctx.rotate(pose.rotation);ctx.globalAlpha=pose.alpha;
     for(const cell of ship.cells||[]){
       if(!cell.alive)continue;
-      const stage=G.damageStage?G.damageStage(cell):'intact';
-      if(stage==='intact'||stage==='destroyed')continue;
-      const p=G.cellCenterLocal(ship,cell);
-      if(stage==='critical'){
-        ctx.fillStyle='rgba(18,14,12,.14)';ctx.fillRect(p.x-s*.45,p.y-s*.45,s*.9,s*.9);
+      const damageStage=G.damageStage?G.damageStage(cell):'intact';
+      const p=G.cellCenterLocal(ship,cell),seed=cell.gx*17+cell.gy*31;
+      if(damageStage!=='intact'&&damageStage!=='destroyed'){
+        if(damageStage==='critical'){
+          ctx.fillStyle='rgba(18,14,12,.14)';ctx.fillRect(p.x-s*.45,p.y-s*.45,s*.9,s*.9);
+        }
+        drawCrack(ctx,p.x,p.y,s,damageStage,seed);
       }
-      drawCrack(ctx,p.x,p.y,s,stage,cell.gx*17+cell.gy*31);
+      drawStress(ctx,p.x,p.y,s,cell.stress||0,seed);
     }
     ctx.restore();ctx.globalAlpha=1;
+  }
+
+  function drawStressRuptures(ctx,state){
+    for(const f of state.fx||[]){
+      if(f.k!=='stressRupture')continue;
+      const p=Math.max(0,Math.min(1,(f.t||0)/(f.dur||.58))),r=(f.r||52)*(0.35+p*.8);
+      ctx.globalAlpha=(1-p)*.85;ctx.strokeStyle='rgba(82,37,27,.9)';ctx.lineWidth=3*(1-p*.45);
+      ctx.beginPath();ctx.arc(f.x,f.y,r,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(f.x-r*.55,f.y+r*.08);ctx.lineTo(f.x-r*.1,f.y-r*.18);ctx.lineTo(f.x+r*.52,f.y+r*.12);ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+  }
+
+  function drawAimInfo(ctx,state){
+    const resolved=resolveAimCell(state);if(!resolved)return;
+    const {ship,cell}=resolved,info=formatAimInfo(ship,cell),world=G.cellCenterWorld(ship,cell);
+    const x=Math.max(170,Math.min(C.W-170,world.x)),y=Math.max(120,world.y-58);
+    const width=info.detail?300:270,height=info.detail?58:38;
+    ctx.fillStyle='rgba(7,30,43,.88)';ctx.fillRect(x-width/2,y-height/2,width,height);
+    ctx.strokeStyle=info.stage==='critical'?'rgba(255,185,84,.95)':'rgba(222,245,255,.65)';ctx.lineWidth=1.5;ctx.strokeRect(x-width/2,y-height/2,width,height);
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='700 17px "Microsoft YaHei",sans-serif';ctx.fillStyle='#f5fbff';ctx.fillText(info.primary,x,y-(info.detail?10:0));
+    if(info.detail){ctx.font='700 14px "Microsoft YaHei",sans-serif';ctx.fillStyle=info.detail==='危险'?'#ffd06a':'#bfe9ff';ctx.fillText(info.detail,x,y+14);}
   }
 
   function drawHudOverlay(ctx,state){
     ctx.fillStyle='rgba(5,30,48,.90)';ctx.fillRect(26,24,650,112);
     ctx.font='700 27px "Microsoft YaHei",sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle='#fff';
-    ctx.fillText('V8.5.1 · 船体损伤与破甲',50,55);
+    ctx.fillText('V8.6 · 部件损伤与结构应力',50,55);
     ctx.font='700 21px "Microsoft YaHei",sans-serif';ctx.fillStyle='#dff7ff';
     ctx.fillText(`我方结构 ${Math.round(G.integrity(state.player)*100)}%`,50,96);
     ctx.textAlign='right';ctx.fillStyle='#ffd65a';ctx.fillText(`击沉 ${state.kills}   金币 ${state.gold}`,650,96);
 
     ctx.fillStyle='rgba(7,37,53,.78)';ctx.fillRect(700,18,1000,52);
     ctx.font='700 21px "Microsoft YaHei",sans-serif';ctx.textAlign='center';ctx.fillStyle='#f3fbff';
-    ctx.fillText('先打裂外壳 → 破甲穿透 → 主梁断裂 → 结构崩解',1200,44);
-    ctx.fillStyle='rgba(7,37,53,.76)';ctx.fillRect(360,C.H-68,1200,42);
+    ctx.fillText('打残部件 → 性能下降 → 主梁应力 → 结构崩解',1200,44);
+    ctx.fillStyle='rgba(7,37,53,.76)';ctx.fillRect(310,C.H-68,1300,42);
     ctx.font='700 19px "Microsoft YaHei",sans-serif';ctx.fillStyle='#e9f8ff';
-    ctx.fillText('方块有独立耐久 · 完整装甲先吸收炮击 · 破甲后才能继续穿透 · 无镜头/船体受击抖动',960,C.H-47);
+    ctx.fillText('炮位 / 桅杆 / 舵机按剩余耐久渐进衰减 · 主梁高应力可扩大断裂 · 无镜头/船体受击抖动',960,C.H-47);
   }
 
   function drawDamageOverlay(state){
@@ -73,6 +140,8 @@
     const ctx=canvas.getContext('2d');if(!ctx)return;
     ctx.save();worldTransform(ctx,canvas);
     for(const ship of shipsOf(state))drawShipDamage(ctx,ship,state);
+    drawStressRuptures(ctx,state);
+    drawAimInfo(ctx,state);
     drawHudOverlay(ctx,state);
     ctx.restore();
   }
@@ -83,4 +152,6 @@
   };
 
   R.drawDamageOverlay=drawDamageOverlay;
+  R.resolveAimCell=resolveAimCell;
+  R.formatAimInfo=formatAimInfo;
 })(typeof globalThis!=='undefined'?globalThis:this);
