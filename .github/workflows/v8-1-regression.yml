@@ -13,3 +13,5 @@ jobs:
           node-version: 22
       - name: V8.1 structure
         run: node tests/v8_1_structure_break.test.js
+      - name: V8.1 penetration
+        run: node tests/v8_1_penetration.test.js
