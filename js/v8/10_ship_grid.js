@@ -7,8 +7,10 @@
     gunship:{gridWidth:22,gridHeight:10,cellSize:16,base:'#3f4450',deck:'#7d6a55',rotation:0},
     manowar:{gridWidth:28,gridHeight:12,cellSize:16,base:'#2e7d4f',deck:'#7fa06a',rotation:0},
   };
-  const CELL_HP={hull:28,deck:20,core:42,mast:24,cannon:26,powder:18};
-  const CELL_WEIGHT={hull:1,deck:1,core:2,mast:1,cannon:1,powder:1};
+  const CELL_HP={hull:28,deck:20,beam:48,core:48,powder:18,rudder:24,mast:26,cannon:26};
+  const CELL_WEIGHT={hull:1,deck:1,beam:3,core:3,powder:1,rudder:1,mast:1,cannon:1};
+  const MATERIAL_RESISTANCE={hull:34,deck:24,beam:52,core:52,powder:20,rudder:28,mast:30,cannon:30};
+  const CRITICAL_TYPES=new Set(['beam','powder','rudder','mast','cannon']);
 
   function key(gx,gy){return gx+','+gy;}
 
@@ -44,11 +46,72 @@
            !occ.has(key(gx,gy-1))||!occ.has(key(gx,gy+1));
   }
 
-  function typeFor(kind,gx,gy,w,h,occ){
-    if(isOuter(occ,gx,gy))return 'hull';
-    const cx=Math.abs((gx+.5)-w/2),cy=Math.abs((gy+.5)-h/2);
-    if(cx<=1.2&&cy<=Math.max(1.2,h*.10))return 'core';
-    return 'deck';
+  function nearestInternal(cells,targetX,targetY,exclude){
+    let best=null,bestD=Infinity;
+    for(const c of cells){
+      if(c.type!=='deck'&&c.type!=='beam')continue;
+      if(exclude&&exclude.has(key(c.gx,c.gy)))continue;
+      const d=(c.gx-targetX)*(c.gx-targetX)+(c.gy-targetY)*(c.gy-targetY);
+      if(d<bestD){bestD=d;best=c;}
+    }
+    return best;
+  }
+
+  function setType(cell,type){
+    if(!cell)return;
+    cell.type=type;
+    cell.material=type==='core'?'beam':type;
+    cell.maxHp=CELL_HP[type]||20;
+    cell.hp=cell.maxHp;
+    cell.weight=CELL_WEIGHT[type]||1;
+    cell.critical=CRITICAL_TYPES.has(type);
+    cell.system=type==='beam'||type==='core'?'structure':(cell.critical?type:null);
+  }
+
+  function assignFunctionalTypes(kind,w,h,cells){
+    const internal=cells.filter(c=>c.type==='deck');
+    if(!internal.length)return;
+    const used=new Set();
+    const horizontal=kind!=='player';
+    const centerX=(w-1)/2,centerY=(h-1)/2;
+
+    if(horizontal){
+      const beamY=Math.floor(centerY);
+      for(const c of internal){
+        if(c.gy===beamY&&c.gx>=Math.floor(w*.28)&&c.gx<=Math.ceil(w*.72)){
+          setType(c,'beam');used.add(key(c.gx,c.gy));
+        }
+      }
+      const placements=[
+        ['powder',w*.64,centerY],
+        ['rudder',w*.82,centerY],
+        ['mast',w*.50,centerY],
+        ['cannon',w*.48,h*.30],
+        ['cannon',w*.48,h*.70],
+      ];
+      for(const [type,x,y] of placements){
+        const c=nearestInternal(cells,x,y,used);
+        if(c){setType(c,type);used.add(key(c.gx,c.gy));}
+      }
+    }else{
+      const beamX=Math.floor(centerX);
+      for(const c of internal){
+        if(c.gx===beamX&&c.gy>=Math.floor(h*.28)&&c.gy<=Math.ceil(h*.72)){
+          setType(c,'beam');used.add(key(c.gx,c.gy));
+        }
+      }
+      const placements=[
+        ['powder',centerX,h*.64],
+        ['rudder',centerX,h*.82],
+        ['mast',centerX,h*.50],
+        ['cannon',w*.30,h*.48],
+        ['cannon',w*.70,h*.48],
+      ];
+      for(const [type,x,y] of placements){
+        const c=nearestInternal(cells,x,y,used);
+        if(c){setType(c,type);used.add(key(c.gx,c.gy));}
+      }
+    }
   }
 
   function createTemplateShip(kind,side,x,y){
@@ -57,14 +120,15 @@
     const occ=buildOccupancy(kind,spec.gridWidth,spec.gridHeight);
     const cells=[];
     const cellMap=Object.create(null);
-    let totalWeight=0;
     for(let gy=0;gy<spec.gridHeight;gy++)for(let gx=0;gx<spec.gridWidth;gx++){
       if(!occ.has(key(gx,gy)))continue;
-      const type=typeFor(kind,gx,gy,spec.gridWidth,spec.gridHeight,occ);
-      const hp=CELL_HP[type]||20,weight=CELL_WEIGHT[type]||1;
-      const cell={gx,gy,type,hp,maxHp:hp,alive:true,weight,flash:0};
-      cells.push(cell);cellMap[key(gx,gy)]=cell;totalWeight+=weight;
+      const type=isOuter(occ,gx,gy)?'hull':'deck';
+      const cell={gx,gy,type,material:type,hp:CELL_HP[type],maxHp:CELL_HP[type],alive:true,weight:CELL_WEIGHT[type],flash:0,critical:false,system:null};
+      cells.push(cell);cellMap[key(gx,gy)]=cell;
     }
+    assignFunctionalTypes(kind,spec.gridWidth,spec.gridHeight,cells);
+    let totalWeight=0;
+    for(const c of cells)totalWeight+=c.weight||1;
     return {
       id:null,kind,side:side||'enemy',x:x||0,y:y||0,rotation:spec.rotation||0,
       gridWidth:spec.gridWidth,gridHeight:spec.gridHeight,cellSize:spec.cellSize,
@@ -117,27 +181,41 @@
     return aliveWeight/ship.totalWeight;
   }
 
+  function connectedComponents(ship){
+    const seen=new Set(),out=[];
+    if(!ship||!ship.cells)return out;
+    for(const cell of ship.cells){
+      const startKey=key(cell.gx,cell.gy);
+      if(!cell.alive||seen.has(startKey))continue;
+      const q=[cell],comp=[];seen.add(startKey);
+      for(let i=0;i<q.length;i++){
+        const cur=q[i];comp.push(cur);
+        for(const [gx,gy] of [[cur.gx-1,cur.gy],[cur.gx+1,cur.gy],[cur.gx,cur.gy-1],[cur.gx,cur.gy+1]]){
+          const k=key(gx,gy),n=ship.cellMap[k];
+          if(n&&n.alive&&!seen.has(k)){seen.add(k);q.push(n);}
+        }
+      }
+      out.push(comp);
+    }
+    return out;
+  }
+
   function mainConnectedKeys(ship){
     const live=ship&&ship.cells?ship.cells.filter(c=>c.alive):[];
     const seen=new Set();
     if(!live.length)return seen;
-    let seeds=live.filter(c=>c.type==='core');
-    if(!seeds.length){
-      const cx=(ship.gridWidth-1)/2,cy=(ship.gridHeight-1)/2;
-      let best=live[0],bestD=Infinity;
-      for(const c of live){
-        const d=(c.gx-cx)*(c.gx-cx)+(c.gy-cy)*(c.gy-cy);
-        if(d<bestD){bestD=d;best=c;}
-      }
-      seeds=[best];
+    const cx=(ship.gridWidth-1)/2,cy=(ship.gridHeight-1)/2;
+    const structural=live.filter(c=>c.type==='beam'||c.type==='core');
+    let best=(structural.length?structural:live)[0],bestD=Infinity;
+    for(const c of (structural.length?structural:live)){
+      const d=(c.gx-cx)*(c.gx-cx)+(c.gy-cy)*(c.gy-cy);
+      if(d<bestD){bestD=d;best=c;}
     }
-    const q=seeds.slice();
-    for(const c of q)seen.add(key(c.gx,c.gy));
+    const q=[best];seen.add(key(best.gx,best.gy));
     for(let qi=0;qi<q.length;qi++){
       const c=q[qi];
-      const ns=[[c.gx-1,c.gy],[c.gx+1,c.gy],[c.gx,c.gy-1],[c.gx,c.gy+1]];
-      for(const n of ns){
-        const k=key(n[0],n[1]);
+      for(const [gx,gy] of [[c.gx-1,c.gy],[c.gx+1,c.gy],[c.gx,c.gy-1],[c.gx,c.gy+1]]){
+        const k=key(gx,gy);
         if(seen.has(k))continue;
         const next=ship.cellMap[k];
         if(!next||!next.alive)continue;
@@ -181,8 +259,8 @@
   }
 
   root.V8ShipGrid={
-    SPECS,CELL_HP,CELL_WEIGHT,createTemplateShip,worldToLocal,localToWorld,
-    localToGrid,cellCenterLocal,cellCenterWorld,damageCell,integrity,
+    SPECS,CELL_HP,CELL_WEIGHT,MATERIAL_RESISTANCE,createTemplateShip,worldToLocal,localToWorld,
+    localToGrid,cellCenterLocal,cellCenterWorld,damageCell,integrity,connectedComponents,
     mainConnectedKeys,detachDisconnected,firstCellAlongSegment,pointHitsLiveCell
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
