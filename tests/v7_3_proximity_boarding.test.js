@@ -12,7 +12,7 @@ assert.match(index,/V7\.3/,'page must publish V7.3');
 assert.match(index,/js\/31_v73_proximity_boarding\.js/,'index must load V7.3 layer');
 assert.ok(index.indexOf('js/29_v72_no_magnetic_docking.js')<index.indexOf('js/31_v73_proximity_boarding.js'),'V7.3 must load after V7.2');
 assert.ok(index.indexOf('js/31_v73_proximity_boarding.js')<index.indexOf('js/60_input_loop.js'),'V7.3 must load before main loop');
-assert.match(v73,/const\s+V73_BOARDING_RANGE\s*=\s*320\b/,'nearby boarding range must be 320px');
+assert.match(v73,/const\s+V73_BOARDING_RANGE\s*=\s*50\b/,'nearby boarding range must be exactly 50px');
 for(const fn of ['v73ProximityGap','v73CanBoardFromProximity','v73DeployBoarder','v73UpdateProximityBoarding']){
   assert(new RegExp(`function\\s+${fn}`).test(v73),`${fn} missing`);
 }
@@ -43,13 +43,13 @@ const ctx={
 };
 vm.createContext(ctx);vm.runInContext(v73,ctx);
 
-// targetX = 600 + 80 - 7 = 673. Two ships at the same Y are both near enough,
-// even though neither is docked/contacted and they would visually crowd each other.
-const a={type:'sloop',t:{pir:1},state:'closing',gone:false,x:900,y:540,rx:80,ry:50,deployed:0,v73DeployT:0,contact:false}; // gap 227
-const b={type:'sloop',t:{pir:1},state:'closing',gone:false,x:930,y:550,rx:80,ry:50,deployed:0,v73DeployT:0,contact:false}; // gap 257
+// targetX = 600 + 80 - 7 = 673. Ships at 30px and 50px gaps may both unload
+// without docking/contact, even if they visually crowd one another.
+const a={type:'sloop',t:{pir:1},state:'closing',gone:false,x:703,y:540,rx:80,ry:50,deployed:0,v73DeployT:0,contact:false}; // gap 30
+const b={type:'sloop',t:{pir:1},state:'closing',gone:false,x:723,y:550,rx:80,ry:50,deployed:0,v73DeployT:0,contact:false}; // gap 50
 ctx.g.enemies=[a,b];
-assert.equal(ctx.v73CanBoardFromProximity(a),true,'near ship must be allowed to board without contact');
-assert.equal(ctx.v73CanBoardFromProximity(b),true,'second crowded near ship must also be allowed');
+assert.equal(ctx.v73CanBoardFromProximity(a),true,'ship inside 50px must be allowed to board without contact');
+assert.equal(ctx.v73CanBoardFromProximity(b),true,'ship exactly at 50px must be allowed');
 assert.equal(ctx.lockEnemyContact(a),false,'V7.3 must never require docking');
 ctx.v73UpdateProximityBoarding(.30);
 assert.equal(a.deployed,1,'first near ship should deploy a pirate');
@@ -58,12 +58,12 @@ assert.equal(ctx.g.boarders.length,2,'both near ships should create boarders in 
 assert.ok(ctx.g.boarders.every(x=>x.state==='swing'||x.state==='climb'),'proximity boarding should use jump/rope transit, not a contact plank');
 assert.ok(ctx.g.boarders.every(x=>x.boardingChannel===null),'proximity boarders must not occupy boarding channels');
 
-// Far ships must still travel closer before unloading.
-const far={type:'sloop',t:{pir:1},state:'closing',gone:false,x:1040,y:560,rx:80,ry:50,deployed:0,v73DeployT:0,contact:false}; // gap 367
+// 51px is outside the allowed trigger range and must not unload.
+const far={type:'sloop',t:{pir:1},state:'closing',gone:false,x:724,y:560,rx:80,ry:50,deployed:0,v73DeployT:0,contact:false}; // gap 51
 ctx.g.enemies.push(far);
-assert.equal(ctx.v73CanBoardFromProximity(far),false,'ship outside 320px range must not unload yet');
+assert.equal(ctx.v73CanBoardFromProximity(far),false,'ship at 51px must not unload yet');
 ctx.v73UpdateProximityBoarding(.30);
-assert.equal(far.deployed,0,'far ship must keep approaching');
+assert.equal(far.deployed,0,'51px ship must keep approaching');
 
 // Once all pirates have actually reached fight, the old instant-disappear behavior remains.
 for(const pirate of ctx.g.boarders)pirate.state='fight';
@@ -74,7 +74,7 @@ assert.equal(ctx.g.enemies.includes(b),false);
 
 // 40-active-pirate safety cap must remain.
 ctx.g.boarders=Array.from({length:40},()=>({hp:40,state:'fight'}));
-const capped={type:'sloop',t:{pir:1},state:'closing',gone:false,x:900,y:560,rx:80,ry:50,deployed:0,v73DeployT:0,contact:false};
+const capped={type:'sloop',t:{pir:1},state:'closing',gone:false,x:703,y:560,rx:80,ry:50,deployed:0,v73DeployT:0,contact:false};
 ctx.g.enemies=[capped];
 ctx.v73UpdateProximityBoarding(.30);
 assert.equal(capped.deployed,0,'40 active pirates must pause new proximity deployment');
@@ -83,4 +83,4 @@ const v69=read('js/25_v69_endless_waves.js');
 const v71=read('js/28_v71_boarding_flow.js');
 assert.match(v69,/const\s+V69_WAVE_INTERVAL\s*=\s*15\b/,'15-second endless waves must remain');
 assert.match(v71,/g\.shake\s*=\s*0/,'no-attack-jitter rule must remain');
-console.log('PASS: V7.3 proximity boarding without docking/contact');
+console.log('PASS: V7.3 50px proximity boarding without docking/contact');
