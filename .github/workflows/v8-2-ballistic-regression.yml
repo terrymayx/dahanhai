@@ -11,7 +11,38 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Ballistic arc
-        run: node tests/v8_2_ballistic_arc.test.js
-      - name: V8.2.1 entry cache
-        run: node tests/v8_2_entry.test.js
+      - name: V8.2 feature tests
+        run: |
+          node tests/v8_2_ballistic_arc.test.js
+          node tests/v8_2_components.test.js
+          node tests/v8_2_material_penetration.test.js
+          node tests/v8_2_powder_chain.test.js
+          node tests/v8_2_debris_cluster.test.js
+          node tests/v8_2_render_contract.test.js
+          node tests/v8_2_entry.test.js
+      - name: V8.1 regression
+        run: |
+          node tests/v8_1_structure_break.test.js
+          node tests/v8_1_penetration.test.js
+          node tests/v8_1_aiming.test.js
+          node tests/v8_1_feedback_contract.test.js
+          node tests/v8_1_entry.test.js
+      - name: V8.0 regression
+        run: |
+          node tests/v8_0_ship_grid.test.js
+          node tests/v8_0_battle.test.js
+          node tests/v8_0_render_contract.test.js
+          node tests/v8_0_entry.test.js
+          node tests/v8_0_single_enemy.test.js
+      - name: JavaScript syntax
+        run: |
+          for f in js/v8/*.js; do node --check "$f"; done
+      - name: Legacy V6/V7 regression
+        run: |
+          cp index.html /tmp/v8-index.html
+          cp legacy_v7.html index.html
+          for f in tests/v6*.test.js tests/v7*.test.js; do
+            [ -f "$f" ] && node "$f"
+          done
+          cp /tmp/v8-index.html index.html
+          git diff --exit-code
