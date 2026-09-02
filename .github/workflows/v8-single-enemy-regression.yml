@@ -1,0 +1,24 @@
+name: V8 Single Enemy Regression
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Single enemy RED/GREEN
+        run: node tests/v8_0_single_enemy.test.js
+      - name: V8 core tests
+        run: |
+          node tests/v8_0_ship_grid.test.js
+          node tests/v8_0_battle.test.js
+          node tests/v8_0_render_contract.test.js
+          node tests/v8_0_entry.test.js
+      - name: JavaScript syntax
+        run: |
+          for f in js/v8/*.js; do node --check "$f"; done
