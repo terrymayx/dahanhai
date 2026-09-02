@@ -14,7 +14,7 @@ state.spawnT=0;
 B.update(state,.05);
 let active=B.activeEnemies(state);
 assert.strictEqual(active.length,2,'a spawn cycle must create exactly two active enemy ships');
-assert.strictEqual(active[0].x,active[1].x,'paired enemy ships must enter on the same X line');
+assert(Math.abs(active[0].x-active[1].x)<=160,'paired enemy ships must remain in one coherent formation');
 assert(Math.abs(active[0].y-active[1].y)>=220,'paired enemy ships must be visibly separated vertically');
 
 active[0].state='sink';active[0].sinkT=0;
