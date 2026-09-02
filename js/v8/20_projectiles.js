@@ -3,11 +3,16 @@
   const Grid=root.V8ShipGrid;
   if(!Grid)throw new Error('V8ShipGrid must load before V8Projectile');
 
+  const PEN_COST={hull:34,deck:24,core:42,mast:28,cannon:28,powder:28};
+
   function spawn(state,opts){
+    const side=opts.side||'player';
     const p={
       x:opts.x,y:opts.y,vx:opts.vx||0,vy:opts.vy||0,
-      damage:opts.damage||24,side:opts.side||'player',life:opts.life||3,
-      radius:opts.radius||5,dead:false
+      damage:opts.damage||24,side,life:opts.life||3,
+      radius:opts.radius||5,dead:false,
+      penetration:opts.penetration==null?(side==='player'?78:0):opts.penetration,
+      hitCells:Object.create(null)
     };
     state.projectiles.push(p);return p;
   }
@@ -27,6 +32,8 @@
       for(const ship of targetsFor(state,p)){
         const cell=Grid.firstCellAlongSegment(ship,x0,y0,p.x,p.y);
         if(!cell)continue;
+        const hk=(ship.id||ship.kind)+':'+cell.gx+','+cell.gy;
+        if(p.hitCells[hk])continue;
         const w=Grid.cellCenterWorld(ship,cell);
         const d=Math.hypot(w.x-x0,w.y-y0);
         if(d<bestD){best=ship;bestCell=cell;bestD=d;}
@@ -34,17 +41,27 @@
       if(best&&bestCell){
         const hitPos=Grid.cellCenterWorld(best,bestCell);
         const res=Grid.damageCell(best,bestCell,p.damage);
-        p.dead=true;
+        const hk=(best.id||best.kind)+':'+bestCell.gx+','+bestCell.gy;
+        p.hitCells[hk]=true;
         if(typeof state.onCellHit==='function')state.onCellHit(best,bestCell,hitPos,res,p);
         if(res.destroyed&&typeof state.onCellDestroyed==='function')state.onCellDestroyed(best,bestCell,hitPos,p);
         const ratio=Grid.integrity(best);
         const threshold=best.side==='player'?.24:.34;
         if(ratio<=threshold&&typeof state.onShipCritical==='function')state.onShipCritical(best,ratio,p);
+
+        if(p.side==='player'){
+          p.penetration-=PEN_COST[bestCell.type]||28;
+          if(p.penetration>0){
+            const speed=Math.hypot(p.vx,p.vy)||1,ux=p.vx/speed,uy=p.vy/speed;
+            p.x=hitPos.x+ux*best.cellSize*.62;
+            p.y=hitPos.y+uy*best.cellSize*.62;
+          }else p.dead=true;
+        }else p.dead=true;
       }
       if(!p.dead&&p.life>0&&p.x>-300&&p.x<2300&&p.y>-300&&p.y<1400)out.push(p);
     }
     state.projectiles=out;
   }
 
-  root.V8Projectile={spawn,updateAll};
+  root.V8Projectile={PEN_COST,spawn,updateAll};
 })(typeof globalThis!=='undefined'?globalThis:this);
