@@ -1,0 +1,15 @@
+name: V8.2 Ballistic Regression
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Ballistic arc RED/GREEN
+        run: node tests/v8_2_ballistic_arc.test.js
