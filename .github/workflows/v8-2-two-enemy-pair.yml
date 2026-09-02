@@ -11,5 +11,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Two-enemy pair RED/GREEN
-        run: node tests/v8_2_two_enemy_pair.test.js
+      - name: V8 full regression
+        run: |
+          for f in tests/v8_*.test.js; do
+            echo "== $f =="
+            node "$f"
+          done
+      - name: JavaScript syntax
+        run: |
+          for f in js/v8/*.js; do
+            node --check "$f"
+          done
+      - name: Legacy V6/V7 regression
+        run: |
+          cp index.html /tmp/v8-index.html
+          cp legacy_v7.html index.html
+          for f in tests/v6_*.test.js tests/v7_*.test.js; do
+            echo "== $f =="
+            node "$f"
+          done
+          cp /tmp/v8-index.html index.html
