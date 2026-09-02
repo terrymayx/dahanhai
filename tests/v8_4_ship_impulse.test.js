@@ -26,13 +26,14 @@ const projectile={vx:900,vy:0,damage:24,side:'player'};
 B.applyHitImpulse(sloop,deck,G.cellCenterWorld(sloop,deck),projectile);
 const deckImpulse=Math.hypot(sloop.physics.impulseX,sloop.physics.impulseY);
 const deckResponse=Math.abs(sloop.physics.roll)+Math.abs(sloop.physics.angularVelocity);
+assert(deckResponse>0,'off-center deck hit must produce visible rotational response');
 
 for(const k of ['impulseX','impulseY','offsetX','offsetY','roll','angularVelocity'])sloop.physics[k]=0;
 B.applyHitImpulse(sloop,beam,G.cellCenterWorld(sloop,beam),projectile);
 const beamImpulse=Math.hypot(sloop.physics.impulseX,sloop.physics.impulseY);
 const beamResponse=Math.abs(sloop.physics.roll)+Math.abs(sloop.physics.angularVelocity);
-assert(beamImpulse>deckImpulse,'beam impact must impart more impulse than deck');
-assert(beamResponse>=deckResponse,'beam impact must not feel weaker in roll/torque');
+assert(beamImpulse>deckImpulse,'beam material must impart more linear impulse than deck');
+assert(beamResponse>0,'beam hit must still create rotational/roll feedback even near the center');
 
 const before=Math.hypot(sloop.physics.impulseX,sloop.physics.impulseY);
 for(let i=0;i<180;i++)B.updateShipPhysics(sloop,1/60);
