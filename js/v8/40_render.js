@@ -89,7 +89,7 @@
 
     ctx.restore();ctx.globalAlpha=1;
     if(ship.focus&&ship.state==='active'){
-      const b=shipBounds(ship);ctx.save();ctx.strokeStyle='#ffd43b';ctx.lineWidth=4;ctx.setLineDash([12,9]);ctx.beginPath();ctx.ellipse(ship.x,ship.y,b.w*.58,b.h*.78,ship.rotation,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+      const b=shipBounds(ship);ctx.save();ctx.strokeStyle='#ffd43b';ctx.lineWidth=3;ctx.setLineDash([12,9]);ctx.beginPath();ctx.ellipse(ship.x,ship.y,b.w*.58,b.h*.78,ship.rotation,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore();
     }
     if(ship.side==='enemy'&&ship.state==='active'){
       const pct=Math.round(Grid.integrity(ship)*100);text(`结构 ${pct}%`,ship.x,ship.y-ship.gridHeight*ship.cellSize*.72-18,21,'#fff','#173047',4);
@@ -110,29 +110,49 @@
     }
   }
 
+  function drawAim(state){
+    if(!state.aim)return;
+    const ship=(state.enemies||[]).find(e=>e.id===state.aim.shipId&&e.state==='active');
+    if(!ship)return;
+    const a=state.aim;
+    const p=Number.isFinite(a.lx)&&Number.isFinite(a.ly)?Grid.localToWorld(ship,a.lx,a.ly):{x:a.x,y:a.y};
+    const pulse=1+Math.sin((state.time||0)*8)*.08;
+    ctx.save();ctx.translate(p.x,p.y);ctx.scale(pulse,pulse);
+    ctx.strokeStyle='#ffd43b';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,22,0,Math.PI*2);ctx.stroke();
+    ctx.strokeStyle='#ff6b35';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(-34,0);ctx.lineTo(-10,0);ctx.moveTo(34,0);ctx.lineTo(10,0);ctx.moveTo(0,-34);ctx.lineTo(0,-10);ctx.moveTo(0,34);ctx.lineTo(0,10);ctx.stroke();
+    ctx.restore();
+  }
+
   function drawFx(state){
     for(const f of state.fx){
       const p=Math.min(1,f.t/f.dur);
       if(f.k==='splinter'){
         ctx.save();ctx.translate(f.x,f.y);ctx.rotate(f.t*8);ctx.globalAlpha=1-p;ctx.fillStyle='#7b4b28';ctx.fillRect(-f.r,-f.r*.45,f.r*2,f.r*.9);ctx.restore();
+      }else if(f.k==='debris'){
+        ctx.save();ctx.translate(f.x,f.y);ctx.rotate(f.rot||0);ctx.globalAlpha=Math.max(0,1-p);ctx.fillStyle=f.cellType==='deck'?'#b07155':'#714128';ctx.fillRect(-f.r/2,-f.r/2,f.r,f.r);ctx.strokeStyle='rgba(45,27,18,.7)';ctx.lineWidth=1.5;ctx.strokeRect(-f.r/2,-f.r/2,f.r,f.r);ctx.restore();
       }else if(f.k==='hit'){
         ctx.globalAlpha=1-p;ctx.fillStyle='#ffd85a';ctx.beginPath();ctx.arc(f.x,f.y,5+p*18,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+      }else if(f.k==='impactBurst'){
+        ctx.save();ctx.translate(f.x,f.y);ctx.globalAlpha=1-p;ctx.strokeStyle='#ffd45f';ctx.lineWidth=5*(1-p)+1;ctx.beginPath();ctx.arc(0,0,(f.r||34)*(.35+p),0,Math.PI*2);ctx.stroke();ctx.restore();
+      }else if(f.k==='structureBreak'){
+        ctx.save();ctx.translate(f.x,f.y);ctx.globalAlpha=Math.max(0,1-p);ctx.fillStyle='rgba(255,142,45,.35)';ctx.beginPath();ctx.arc(0,0,(f.r||60)*(.24+p*.78),0,Math.PI*2);ctx.fill();ctx.strokeStyle='#ffe08a';ctx.lineWidth=8*(1-p)+2;ctx.beginPath();ctx.arc(0,0,(f.r||60)*(.18+p),0,Math.PI*2);ctx.stroke();ctx.restore();
       }else if(f.k==='boom'){
         ctx.save();ctx.translate(f.x,f.y);ctx.globalAlpha=1-p;ctx.fillStyle='#ff8d2d';ctx.beginPath();ctx.arc(0,0,35+p*80,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffd95a';ctx.beginPath();ctx.arc(0,0,20+p*45,0,Math.PI*2);ctx.fill();ctx.restore();ctx.globalAlpha=1;
       }else if(f.k==='muzzle'){
         ctx.globalAlpha=1-p;ctx.fillStyle='#fff1a8';ctx.beginPath();ctx.arc(f.x,f.y,8+p*20,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
       }
     }
+    ctx.globalAlpha=1;
     for(const t of state.texts)text(t.text,t.x,t.y,20,'#ffe65c','#52331d',3);
   }
 
   function drawHud(state){
-    ctx.fillStyle='rgba(5,30,48,.72)';roundRect(26,24,530,112,18);ctx.fill();
-    text('V8.0-A · 方块船体破坏',50,55,28,'#fff',null,0,'left');
+    ctx.fillStyle='rgba(5,30,48,.72)';roundRect(26,24,560,112,18);ctx.fill();
+    text('V8.1 · 精准拆船',50,55,28,'#fff',null,0,'left');
     text(`我方结构 ${Math.round(Grid.integrity(state.player)*100)}%`,50,96,23,'#dff7ff',null,0,'left');
-    text(`击沉 ${state.kills}   金币 ${state.gold}`,530,57,23,'#ffd65a','#173047',3,'right');
-    text('炮弹打中哪一格，哪一格就会真实破损消失',C.W/2,42,23,'#ffffff','#17435a',4);
-    text('点击敌舰集火 · 现在先测试结构破坏，不启用登船战',C.W/2,C.H-38,21,'#e9f8ff','#17435a',4);
+    text(`击沉 ${state.kills}   金币 ${state.gold}`,560,57,23,'#ffd65a','#173047',3,'right');
+    text('点击哪里就轰哪里 · 炮弹会沿缺口继续穿入内部',C.W/2,42,23,'#ffffff','#17435a',4);
+    text('点击敌舰局部瞄准 · 重炮可打穿船壳 · 打断结构会整片脱落',C.W/2,C.H-38,21,'#e9f8ff','#17435a',4);
 
     ctx.fillStyle='rgba(5,30,48,.68)';roundRect(C.W-118,25,88,60,14);ctx.fill();text(state.paused?'▶':'Ⅱ',C.W-74,55,28,'#fff');
     if(state.state==='lose'){
@@ -142,9 +162,15 @@
   }
 
   function draw(state){
-    if(!ctx||!state)return;beginWorld();drawSea(state);drawShip(state.player);
-    for(const e of state.enemies)drawShip(e);drawProjectiles(state);drawFx(state);drawHud(state);
+    if(!ctx||!state)return;
+    beginWorld();drawSea(state);
+    const shake=state.shake||0,sx=shake?U.rand(-shake,shake):0,sy=shake?U.rand(-shake,shake):0;
+    ctx.save();ctx.translate(sx,sy);
+    drawShip(state.player);for(const e of state.enemies)drawShip(e);
+    drawProjectiles(state);drawFx(state);drawAim(state);
+    ctx.restore();
+    drawHud(state);
   }
 
-  root.V8Render={init,resize,draw,drawShip,screenToWorld,shipBounds};
+  root.V8Render={init,resize,draw,drawShip,drawAim,screenToWorld,shipBounds};
 })(typeof globalThis!=='undefined'?globalThis:this);
