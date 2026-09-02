@@ -9,6 +9,65 @@
     manowar:{speed:40,fireMin:2.2,fireMax:3.0,gold:190},
   };
   const SALVO_COUNT=4,SALVO_GAP=.11,SALVO_ARCS=[158,174,188,166];
+  const SHIP_MASS={sloop:.75,gunship:1,manowar:1.35,player:1.45};
+
+  function ensureShipPhysics(ship){
+    if(!ship)return null;
+    if(!ship.physics){
+      ship.physics={
+        impulseX:0,impulseY:0,angularVelocity:0,offsetX:0,offsetY:0,roll:0,
+        bobPhase:Number.isFinite(ship.ph)?ship.ph:Math.random()*Math.PI*2,
+        mass:SHIP_MASS[ship.kind]||1,damping:.86
+      };
+    }else{
+      if(!Number.isFinite(ship.physics.mass))ship.physics.mass=SHIP_MASS[ship.kind]||1;
+      if(!Number.isFinite(ship.physics.damping))ship.physics.damping=.86;
+    }
+    return ship.physics;
+  }
+
+  function applyHitImpulse(ship,cell,pos,projectile,scale){
+    if(!ship||!cell||!pos||!projectile)return ship&&ship.physics;
+    const ph=ensureShipPhysics(ship),speed=Math.hypot(projectile.vx||0,projectile.vy||0)||1;
+    const ux=(projectile.vx||0)/speed,uy=(projectile.vy||0)/speed;
+    const material=cell.material||cell.type;
+    const base=(G.IMPACT_FORCE&&G.IMPACT_FORCE[material])||3.2;
+    const force=base*(scale==null?1:scale)/Math.max(.45,ph.mass||1);
+    ph.impulseX=Math.max(-18,Math.min(18,ph.impulseX+ux*force));
+    ph.impulseY=Math.max(-18,Math.min(18,ph.impulseY+uy*force));
+    const local=G.worldToLocal(ship,pos.x,pos.y);
+    const leverScale=Math.max(ship.gridWidth,ship.gridHeight)*ship.cellSize*.5||1;
+    const torque=(local.x*uy-local.y*ux)/leverScale;
+    ph.angularVelocity=Math.max(-.18,Math.min(.18,ph.angularVelocity+torque*force*.035));
+    const signed=(torque===0?(uy||ux*.25):torque);
+    ph.roll=Math.max(-.087,Math.min(.087,ph.roll+signed*force*.004+Math.sign(signed||1)*force*.0007));
+    return ph;
+  }
+
+  function updateShipPhysics(ship,dt){
+    if(!ship||dt<=0)return ship&&ship.physics;
+    const ph=ensureShipPhysics(ship),frames=dt*60;
+    ph.offsetX+=ph.impulseX*dt*13;
+    ph.offsetY+=ph.impulseY*dt*13;
+    ph.offsetX=Math.max(-14,Math.min(14,ph.offsetX));
+    ph.offsetY=Math.max(-14,Math.min(14,ph.offsetY));
+    ph.roll+=ph.angularVelocity*dt;
+    ph.roll=Math.max(-.087,Math.min(.087,ph.roll));
+    const impulseDamp=Math.pow(ph.damping||.86,frames);
+    const offsetSpring=Math.pow(.91,frames);
+    const angularDamp=Math.pow(.84,frames);
+    const rollSpring=Math.pow(.90,frames);
+    ph.impulseX*=impulseDamp;ph.impulseY*=impulseDamp;
+    ph.offsetX*=offsetSpring;ph.offsetY*=offsetSpring;
+    ph.angularVelocity*=angularDamp;ph.roll*=rollSpring;
+    if(Math.abs(ph.impulseX)<.002)ph.impulseX=0;
+    if(Math.abs(ph.impulseY)<.002)ph.impulseY=0;
+    if(Math.abs(ph.offsetX)<.002)ph.offsetX=0;
+    if(Math.abs(ph.offsetY)<.002)ph.offsetY=0;
+    if(Math.abs(ph.angularVelocity)<.00002)ph.angularVelocity=0;
+    if(Math.abs(ph.roll)<.00002)ph.roll=0;
+    return ph;
+  }
 
   function addSplinters(state,x,y,count,power){
     power=power||1;
@@ -75,6 +134,7 @@
       if(!ship.mastAlive)mult*=.75;
       ship.speed=Math.max(base*.3,base*mult);
     }
+    ensureShipPhysics(ship);
     return ship;
   }
 
@@ -148,6 +208,7 @@
 
   function decorateState(state){
     state.onCellHit=function(ship,cell,pos,res,p){
+      applyHitImpulse(ship,cell,pos,p);
       state.fx.push({k:'hit',x:pos.x,y:pos.y,t:0,dur:.18,side:p.side});
       state.texts.push({x:pos.x,y:pos.y-18,text:'-'+p.damage,t:.65});
       evaluateShip(state,ship);
@@ -161,7 +222,7 @@
 
   function newGame(){
     const player=G.createTemplateShip('player','player',C.PLAYER_X,C.PLAYER_Y);
-    player.id='player';player.criticalThreshold=.24;recomputeShipSystems(player);
+    player.id='player';player.criticalThreshold=.24;recomputeShipSystems(player);ensureShipPhysics(player);
     const state={
       state:'playing',time:0,player,enemies:[],projectiles:[],fx:[],texts:[],debrisClusters:[],
       focus:null,aim:null,salvo:null,gold:0,kills:0,wave:1,spawnT:.6,playerFireT:.15,shotIndex:0,nextEnemyId:1,
@@ -175,7 +236,7 @@
     const e=G.createTemplateShip(kind,'enemy',opts.x==null?2080:opts.x,opts.y==null?U.rand(250,850):opts.y);
     const spec=ENEMY[kind]||ENEMY.sloop;
     e.id='e'+state.nextEnemyId++;e.gold=spec.gold;e.criticalThreshold=.34;
-    e.shotT=U.rand(spec.fireMin,spec.fireMax);recomputeShipSystems(e);
+    e.shotT=U.rand(spec.fireMin,spec.fireMax);recomputeShipSystems(e);ensureShipPhysics(e);
     if(Number.isFinite(opts.stopX))e.stopX=opts.stopX;
     state.enemies.push(e);return e;
   }
@@ -341,6 +402,8 @@
       return;
     }
     state.time+=dt;
+    updateShipPhysics(state.player,dt);
+    for(const ship of state.enemies)updateShipPhysics(ship,dt);
 
     state.spawnT-=dt;
     if(state.spawnT<=0&&activeEnemies(state).length===0){
@@ -385,6 +448,7 @@
 
   root.V8Battle={
     ENEMY,newGame,spawnEnemy,spawnEnemyPair,activeEnemies,targetForPlayer,firePlayer,startPlayerSalvo,updatePlayerSalvo,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint,
-    triggerPowderBlast,applyComponentDestroyed,recomputeShipSystems,createDebrisClusters,updateDebrisClusters
+    triggerPowderBlast,applyComponentDestroyed,recomputeShipSystems,createDebrisClusters,updateDebrisClusters,
+    ensureShipPhysics,applyHitImpulse,updateShipPhysics
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
