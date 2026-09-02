@@ -27,7 +27,7 @@
     player.id='player';player.criticalThreshold=.24;
     const state={
       state:'playing',time:0,player,enemies:[],projectiles:[],fx:[],texts:[],
-      focus:null,gold:0,kills:0,wave:1,spawnT:.6,playerFireT:.15,shotIndex:0,nextEnemyId:1,
+      focus:null,aim:null,gold:0,kills:0,wave:1,spawnT:.6,playerFireT:.15,shotIndex:0,nextEnemyId:1,
       shake:0,paused:false
     };
     return decorateState(state);
@@ -56,11 +56,21 @@
     return {vx:dx/d*speed,vy:dy/d*speed};
   }
 
+  function setAim(state,ship,worldX,worldY){
+    if(!state)return null;
+    if(!ship||ship.state!=='active')return state.aim=null;
+    const local=G.worldToLocal(ship,worldX,worldY),grid=G.localToGrid(ship,local.x,local.y);
+    state.aim={shipId:ship.id,gx:grid.gx,gy:grid.gy,x:worldX,y:worldY};
+    return state.aim;
+  }
+
   function firePlayer(state,target){
     if(!target)return;
     const ys=[430,560,690],y=ys[state.shotIndex++%ys.length];
-    const x=610,v=aimVelocity(x,y,target.x,target.y,900);
-    P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:24,side:'player',life:3});
+    const x=610,aim=state.aim&&state.aim.shipId===target.id?state.aim:null;
+    const tx=aim?aim.x:target.x,ty=aim?aim.y:target.y;
+    const v=aimVelocity(x,y,tx,ty,900);
+    P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:24,side:'player',life:3,penetration:78});
     state.fx.push({k:'muzzle',x:x+8,y,t:0,dur:.16});
   }
 
@@ -84,13 +94,14 @@
     const ratio=G.integrity(ship);
     if(ship.side==='player'){
       if(ratio<=.24&&state.state!=='lose'){
-        state.state='lose';ship.state='wrecked';state.focus=null;
+        state.state='lose';ship.state='wrecked';state.focus=null;state.aim=null;
       }
       return ratio;
     }
     if(ratio<=.34&&ship.state==='active'){
       ship.state='sink';ship.sinkT=0;state.gold+=ship.gold||0;state.kills++;
       if(state.focus===ship)state.focus=null;
+      if(state.aim&&state.aim.shipId===ship.id)state.aim=null;
       state.fx.push({k:'boom',x:ship.x,y:ship.y,t:0,dur:.75});
     }
     return ratio;
@@ -156,5 +167,5 @@
     if(state.focus)state.focus.focus=true;
   }
 
-  root.V8Battle={ENEMY,newGame,spawnEnemy,activeEnemies,targetForPlayer,firePlayer,fireEnemy,evaluateShip,update,setFocus};
+  root.V8Battle={ENEMY,newGame,spawnEnemy,activeEnemies,targetForPlayer,firePlayer,fireEnemy,evaluateShip,update,setFocus,setAim};
 })(typeof globalThis!=='undefined'?globalThis:this);
