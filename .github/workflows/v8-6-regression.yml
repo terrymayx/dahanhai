@@ -20,3 +20,5 @@ jobs:
         run: node tests/v8_6_structure_stress.test.js
       - name: V8.6 aim overlay
         run: node tests/v8_6_aim_overlay.test.js
+      - name: V8.6 entry
+        run: node tests/v8_6_entry.test.js
