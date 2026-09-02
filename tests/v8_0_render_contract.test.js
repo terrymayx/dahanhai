@@ -1,0 +1,13 @@
+const fs=require('fs');
+const assert=require('assert');
+const path='js/v8/40_render.js';
+assert(fs.existsSync(path),'V8 renderer file must exist');
+const src=fs.readFileSync(path,'utf8');
+assert(/ship\.cells/.test(src),'renderer must iterate ship.cells');
+assert(/!cell\.alive|cell\.alive/.test(src),'renderer must skip dead cells');
+assert(/fillRect\s*\(/.test(src),'renderer must batch cells with Canvas fillRect');
+assert(/strokeRect\s*\(/.test(src),'renderer should outline living pixel blocks');
+assert(!/createElement\s*\(/.test(src),'renderer must not create DOM nodes per cell');
+assert(!/new\s+Image\s*\(/.test(src),'core block hull must not depend on per-cell images');
+assert(/V8ShipGrid\.integrity|Grid\.integrity/.test(src),'renderer shows structural integrity from grid data');
+console.log('V8.0 render contract tests passed');
