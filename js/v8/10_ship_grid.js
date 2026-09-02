@@ -2,7 +2,7 @@
   'use strict';
 
   const SPECS={
-    player:{gridWidth:20,gridHeight:34,cellSize:16,base:'#a66b32',deck:'#d7a45f',rotation:-Math.PI/2},
+    player:{gridWidth:20,gridHeight:34,cellSize:16,base:'#a66b32',deck:'#d7a45f',rotation:0},
     sloop:{gridWidth:18,gridHeight:8,cellSize:16,base:'#8a3b2e',deck:'#b07155',rotation:0},
     gunship:{gridWidth:22,gridHeight:10,cellSize:16,base:'#3f4450',deck:'#7d6a55',rotation:0},
     manowar:{gridWidth:28,gridHeight:12,cellSize:16,base:'#2e7d4f',deck:'#7fa06a',rotation:0},
