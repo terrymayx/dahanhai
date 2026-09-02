@@ -122,23 +122,9 @@
     }
   }
 
-  // Destroyed cells must leave absolutely no texture/outline behind.
-  // Erase them on the offscreen ship surface, with a tiny overlap so adjacent
-  // dead cells merge into one clean opening and anti-aliased seams cannot survive.
-  function cutDestroyedCells(ctx,ship){
-    const cellSize=ship.cellSize||16;
-    const overlap=Math.max(1.25,cellSize*.08);
-    ctx.save();
-    ctx.globalCompositeOperation='destination-out';
-    ctx.fillStyle='rgba(0,0,0,1)';
-    for(const cell of ship.cells||[]){
-      if(cell.alive)continue;
-      const p=Grid.cellCenterLocal(ship,cell);
-      const half=cellSize*.5+overlap;
-      ctx.fillRect(p.x-half,p.y-half,half*2,half*2);
-    }
-    ctx.restore();
-  }
+  // V9.2: destroyed cells stay visually present. Burning/scorch effects are
+  // drawn later as an overlay, so the sea never shows through damaged deck/hull.
+  function cutDestroyedCells(ctx,ship){return;}
 
   function renderSurface(ship,state){
     const s=makeSurface(ship);if(!s)return null;const ctx=s.ctx;ctx.clearRect(0,0,s.w,s.h);ctx.save();ctx.translate(s.w/2,s.h/2);
