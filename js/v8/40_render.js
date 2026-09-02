@@ -5,6 +5,12 @@
 
   let canvas=null,ctx=null,scale=1,ox=0,oy=0,dpr=1,seaGrad=null;
   const COMPONENT_LABELS={beam:'主梁',core:'主梁',powder:'火药舱',rudder:'舵机',mast:'桅杆',cannon:'炮位'};
+  const SHIP_MOTION={
+    sloop:{bobAmp:3.5,bobFreq:2.05,rollAmp:.017,rollFreq:1.42,wake:.78},
+    gunship:{bobAmp:2.8,bobFreq:1.65,rollAmp:.014,rollFreq:1.20,wake:1},
+    manowar:{bobAmp:2.2,bobFreq:1.20,rollAmp:.010,rollFreq:.92,wake:1.28},
+    player:{bobAmp:2.1,bobFreq:1.12,rollAmp:.010,rollFreq:.88,wake:1.35}
+  };
 
   function init(cv){
     canvas=cv;ctx=cv.getContext('2d');resize();
@@ -84,39 +90,66 @@
     return{w,h,r:Math.hypot(w,h)/2};
   }
 
-  function drawWake(ship){
+  function shipVisualPose(ship,state){
+    state=state||{time:0};
+    const ph=ship.physics||{},cfg=SHIP_MOTION[ship.kind]||SHIP_MOTION.gunship;
+    const active=ship.state==='active',phase=ph.bobPhase||0;
+    const bobY=active?Math.sin((state.time||0)*cfg.bobFreq+phase)*cfg.bobAmp:0;
+    const bobRoll=active?Math.sin((state.time||0)*cfg.rollFreq+phase*.7)*cfg.rollAmp:0;
+    const sink=ship.state==='sink',sinkP=sink?Math.min(1,ship.sinkT/1.6):0;
+    return{
+      x:ship.x+(ph.offsetX||0),
+      y:ship.y+(ph.offsetY||0)+bobY+sinkP*48,
+      rotation:ship.rotation+(ph.roll||0)+bobRoll+(sink?sinkP*.45:0),
+      alpha:sink?Math.max(0,1-sinkP*.85):1,
+      sinkP
+    };
+  }
+
+  function drawWake(ship,state){
+    const cfg=SHIP_MOTION[ship.kind]||SHIP_MOTION.gunship,ph=ship.physics||{};
+    const cx=ship.x+(ph.offsetX||0)*.35,cy=ship.y+(ph.offsetY||0)*.25;
+    const speedRatio=ship.side==='player'?1:Math.max(.24,Math.min(1.12,(ship.speed||0)/(ship.baseSpeed||ship.speed||1)));
+    const wakeScale=cfg.wake*(.55+speedRatio*.45),alpha=.12+.13*speedRatio;
     if(ship.side==='player'){
-      ctx.fillStyle='rgba(255,255,255,.24)';ctx.beginPath();ctx.moveTo(ship.x-90,ship.y+265);ctx.lineTo(ship.x-125,C.H);ctx.lineTo(ship.x+125,C.H);ctx.lineTo(ship.x+90,ship.y+265);ctx.closePath();ctx.fill();
+      const width=92*wakeScale,length=Math.min(C.H-cy,250+95*wakeScale);
+      ctx.fillStyle=`rgba(255,255,255,${alpha})`;ctx.beginPath();
+      ctx.moveTo(cx-width*.72,cy+240);ctx.lineTo(cx-width,C.H);ctx.lineTo(cx+width,C.H);ctx.lineTo(cx+width*.72,cy+240);ctx.closePath();ctx.fill();
+      ctx.globalAlpha=.36;ctx.strokeStyle='#eafaff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(cx-width*.62,cy+230);ctx.lineTo(cx-width*.82,cy+Math.max(245,length));ctx.moveTo(cx+width*.62,cy+230);ctx.lineTo(cx+width*.82,cy+Math.max(245,length));ctx.stroke();ctx.globalAlpha=1;
     }else if(ship.state==='active'){
-      const b=shipBounds(ship);ctx.fillStyle='rgba(255,255,255,.20)';ctx.beginPath();ctx.moveTo(ship.x+b.w*.45,ship.y-28);ctx.lineTo(ship.x+b.w*.45+150,ship.y-55);ctx.lineTo(ship.x+b.w*.45+150,ship.y-8);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(ship.x+b.w*.45,ship.y+28);ctx.lineTo(ship.x+b.w*.45+150,ship.y+55);ctx.lineTo(ship.x+b.w*.45+150,ship.y+8);ctx.closePath();ctx.fill();
+      const b=shipBounds(ship),half=20+18*wakeScale,len=105+72*wakeScale;
+      ctx.fillStyle=`rgba(255,255,255,${alpha})`;
+      ctx.beginPath();ctx.moveTo(cx+b.w*.45,cy-half*.62);ctx.lineTo(cx+b.w*.45+len,cy-half*1.42);ctx.lineTo(cx+b.w*.45+len,cy-half*.22);ctx.closePath();ctx.fill();
+      ctx.beginPath();ctx.moveTo(cx+b.w*.45,cy+half*.62);ctx.lineTo(cx+b.w*.45+len,cy+half*1.42);ctx.lineTo(cx+b.w*.45+len,cy+half*.22);ctx.closePath();ctx.fill();
     }
   }
 
-  function drawShip(ship){
+  function drawShip(ship,state){
     if(!ship)return;
-    drawWake(ship);
-    const sink=ship.state==='sink',sinkP=sink?Math.min(1,ship.sinkT/1.6):0;
-    ctx.save();ctx.translate(ship.x,ship.y+sinkP*48);ctx.rotate(ship.rotation+(sink?sinkP*.45:0));
-    ctx.globalAlpha=sink?Math.max(0,1-sinkP*.85):1;
+    drawWake(ship,state);
+    const pose=shipVisualPose(ship,state);
+    ctx.save();ctx.translate(pose.x,pose.y);ctx.rotate(pose.rotation);ctx.globalAlpha=pose.alpha;
     for(const cell of ship.cells){if(!cell.alive)continue;drawCell(ship,cell);}
     ctx.restore();ctx.globalAlpha=1;
     if(ship.focus&&ship.state==='active'){
-      const b=shipBounds(ship);ctx.save();ctx.strokeStyle='#ffd43b';ctx.lineWidth=4;ctx.setLineDash([12,9]);ctx.beginPath();ctx.ellipse(ship.x,ship.y,b.w*.60,b.h*.82,ship.rotation,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore();
-      text('锁定目标',ship.x,ship.y-b.h*.92-34,20,'#ffe37a','#532b18',4);
+      const b=shipBounds(ship);ctx.save();ctx.strokeStyle='#ffd43b';ctx.lineWidth=4;ctx.setLineDash([12,9]);ctx.beginPath();ctx.ellipse(pose.x,pose.y,b.w*.60,b.h*.82,pose.rotation,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.restore();
+      text('锁定目标',pose.x,pose.y-b.h*.92-34,20,'#ffe37a','#532b18',4);
     }
     if(ship.side==='enemy'&&ship.state==='active'){
-      const pct=Math.round(Grid.integrity(ship)*100);text(`结构 ${pct}%`,ship.x,ship.y-ship.gridHeight*ship.cellSize*.72-18,21,'#fff','#173047',4);
+      const pct=Math.round(Grid.integrity(ship)*100);text(`结构 ${pct}%`,pose.x,pose.y-ship.gridHeight*ship.cellSize*.72-18,21,'#fff','#173047',4);
     }
   }
 
   function drawDebrisClusters(state){
     for(const cluster of state.debrisClusters||[]){
       const sp=Math.max(0,Math.min(1,cluster.sinkProgress||0));
-      if(sp>.38){
-        ctx.save();ctx.globalAlpha=Math.max(0,.48-sp*.35);ctx.strokeStyle='#d8f7ff';ctx.lineWidth=3;
-        ctx.beginPath();ctx.ellipse(cluster.x,cluster.y+10,28+sp*54,8+sp*10,0,0,Math.PI*2);ctx.stroke();ctx.restore();
+      const floatBob=cluster.phase==='float'?Math.sin((cluster.age||0)*4.2+(cluster.bobPhase||0))*3:0;
+      const drawY=cluster.y+floatBob+sp*7;
+      if(cluster.phase==='float'||cluster.phase==='sink'){
+        ctx.save();ctx.globalAlpha=Math.max(.08,.32-sp*.20);ctx.strokeStyle='#d8f7ff';ctx.lineWidth=2.5;
+        ctx.beginPath();ctx.ellipse(cluster.x,drawY+8,25+(cluster.cells||[]).length*.9,7+(cluster.cells||[]).length*.15,0,0,Math.PI*2);ctx.stroke();ctx.restore();
       }
-      ctx.save();ctx.translate(cluster.x,cluster.y);ctx.rotate(cluster.rotation||0);ctx.globalAlpha=Math.max(0,1-sp*.82);
+      ctx.save();ctx.translate(cluster.x,drawY);ctx.rotate(cluster.rotation||0);ctx.globalAlpha=Math.max(0,1-sp*.86);
       const s=cluster.cellSize||16;
       for(const cell of cluster.cells||[]){
         ctx.fillStyle=debrisCellColor(cluster,cell);
@@ -135,18 +168,28 @@
 
   function roundRect(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
 
+  function drawProjectileTrail(p){
+    for(const t of p.trail||[]){
+      const life=Math.max(0,1-(t.t||0)/(t.dur||.28));
+      ctx.save();ctx.globalAlpha=.24*life;ctx.fillStyle='#e7e2d4';ctx.beginPath();
+      ctx.arc(t.x,t.y-(t.z||0),2.2+(1-life)*4.2,0,Math.PI*2);ctx.fill();ctx.restore();
+    }
+  }
+
   function drawProjectiles(state){
     for(const p of state.projectiles){
-      const z=p.z||0,drawY=p.y-z;
+      drawProjectileTrail(p);
+      const z=p.z||0,drawY=p.y-z,falling=(p.vz||0)<0;
       const projectileShadow=Math.max(.08,.28-Math.min(.2,z/900));
       ctx.save();ctx.globalAlpha=projectileShadow;ctx.fillStyle='#102b39';ctx.beginPath();
       ctx.ellipse(p.x,p.y+3,7+Math.min(10,z*.035),3.2+Math.min(4,z*.012),0,0,Math.PI*2);ctx.fill();ctx.restore();
 
-      ctx.strokeStyle='rgba(255,244,197,.58)';ctx.lineWidth=3;ctx.beginPath();
-      ctx.moveTo(p.x-p.vx*.025,p.y-p.vy*.025-(p.prevZ||0));ctx.lineTo(p.x,drawY);ctx.stroke();
-      const size=(p.radius||5)*(1+Math.min(.28,z/650));
+      const trailFactor=falling?.012:.027;
+      ctx.strokeStyle=falling?'rgba(255,239,177,.72)':'rgba(255,244,197,.50)';ctx.lineWidth=falling?2.4:3.2;ctx.beginPath();
+      ctx.moveTo(p.x-p.vx*trailFactor,p.y-p.vy*trailFactor-(p.prevZ||0));ctx.lineTo(p.x,drawY);ctx.stroke();
+      const size=(p.radius||5)*(1+Math.min(.28,z/650))*(falling?1.10:1);
       ctx.fillStyle=p.side==='player'?'#242a31':'#6b2424';ctx.beginPath();ctx.arc(p.x,drawY,size,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle='rgba(255,255,255,.30)';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(p.x-1.5,drawY-1.5,size*.55,Math.PI*1.05,Math.PI*1.72);ctx.stroke();
+      ctx.strokeStyle=falling?'rgba(255,244,190,.62)':'rgba(255,255,255,.30)';ctx.lineWidth=falling?1.8:1.2;ctx.beginPath();ctx.arc(p.x-1.5,drawY-1.5,size*.55,Math.PI*1.05,Math.PI*1.72);ctx.stroke();
     }
   }
 
@@ -166,8 +209,12 @@
     if(!state.aim)return;
     const ship=(state.enemies||[]).find(e=>e.id===state.aim.shipId&&e.state==='active');
     if(!ship)return;
-    const a=state.aim;
-    const p=Number.isFinite(a.lx)&&Number.isFinite(a.ly)?Grid.localToWorld(ship,a.lx,a.ly):{x:a.x,y:a.y};
+    const a=state.aim,local={x:a.lx,y:a.ly},pose=shipVisualPose(ship,state);
+    let p;
+    if(Number.isFinite(local.x)&&Number.isFinite(local.y)){
+      const c=Math.cos(pose.rotation),s=Math.sin(pose.rotation);
+      p={x:pose.x+local.x*c-local.y*s,y:pose.y+local.x*s+local.y*c};
+    }else p={x:a.x,y:a.y};
     const pulse=1+Math.sin((state.time||0)*8)*.08;
     ctx.save();ctx.translate(p.x,p.y);ctx.scale(pulse,pulse);
     ctx.strokeStyle='#ffd43b';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,22,0,Math.PI*2);ctx.stroke();
@@ -184,6 +231,14 @@
         ctx.save();ctx.translate(f.x,f.y);ctx.rotate(f.t*8);ctx.globalAlpha=1-p;ctx.fillStyle='#7b4b28';ctx.fillRect(-f.r,-f.r*.45,f.r*2,f.r*.9);ctx.restore();
       }else if(f.k==='debris'){
         ctx.save();ctx.translate(f.x,f.y);ctx.rotate(f.rot||0);ctx.globalAlpha=Math.max(0,1-p);ctx.fillStyle=f.cellType==='deck'?'#b07155':'#714128';ctx.fillRect(-f.r/2,-f.r/2,f.r,f.r);ctx.strokeStyle='rgba(45,27,18,.7)';ctx.lineWidth=1.5;ctx.strokeRect(-f.r/2,-f.r/2,f.r,f.r);ctx.restore();
+      }else if(f.k==='waterSplash'){
+        const r=f.r||22;ctx.save();ctx.translate(f.x,f.y);ctx.globalAlpha=Math.max(0,1-p);
+        ctx.fillStyle='rgba(231,250,255,.82)';ctx.beginPath();ctx.ellipse(0,3,r*(.55+p*.55),r*(.16+p*.13),0,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='rgba(245,253,255,.88)';ctx.beginPath();ctx.moveTo(-r*.22,2);ctx.quadraticCurveTo(-r*.10,-r*(.55+p*.85),0,-r*(.72+p*.65));ctx.quadraticCurveTo(r*.13,-r*(.48+p*.50),r*.24,2);ctx.closePath();ctx.fill();ctx.restore();
+      }else if(f.k==='waterRing'){
+        const r=(f.r||24)*(.55+p*1.65);ctx.save();ctx.globalAlpha=(1-p)*.62;ctx.strokeStyle='#dff9ff';ctx.lineWidth=3*(1-p)+.8;ctx.beginPath();ctx.ellipse(f.x,f.y,r,r*.30,0,0,Math.PI*2);ctx.stroke();ctx.restore();
+      }else if(f.k==='foam'){
+        ctx.save();ctx.globalAlpha=(1-p)*.56;ctx.fillStyle='#eefcff';ctx.beginPath();ctx.ellipse(f.x,f.y,(f.r||5)*(1+p*.8),(f.r||5)*(.45+p*.18),0,0,Math.PI*2);ctx.fill();ctx.restore();
       }else if(f.k==='hit'){
         ctx.globalAlpha=1-p;ctx.fillStyle='#ffd85a';ctx.beginPath();ctx.arc(f.x,f.y,5+p*18,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
       }else if(f.k==='impactBurst'){
@@ -192,6 +247,7 @@
         ctx.save();ctx.translate(f.x,f.y);ctx.globalAlpha=Math.max(0,1-p);ctx.fillStyle='rgba(255,142,45,.35)';ctx.beginPath();ctx.arc(0,0,(f.r||60)*(.24+p*.78),0,Math.PI*2);ctx.fill();ctx.strokeStyle='#ffe08a';ctx.lineWidth=8*(1-p)+2;ctx.beginPath();ctx.arc(0,0,(f.r||60)*(.18+p),0,Math.PI*2);ctx.stroke();ctx.restore();
       }else if(f.k==='powderBlast'){
         ctx.save();ctx.translate(f.x,f.y);ctx.globalAlpha=Math.max(0,1-p);
+        ctx.fillStyle='rgba(70,45,38,.25)';ctx.beginPath();ctx.arc(0,-12,(f.r||96)*(.35+p*.94),0,Math.PI*2);ctx.fill();
         ctx.fillStyle='rgba(255,91,31,.72)';ctx.beginPath();ctx.arc(0,0,(f.r||96)*(.20+p*.78),0,Math.PI*2);ctx.fill();
         ctx.fillStyle='#ffd65a';ctx.beginPath();ctx.arc(0,0,(f.r||96)*(.12+p*.38),0,Math.PI*2);ctx.fill();
         ctx.strokeStyle='#fff0a6';ctx.lineWidth=10*(1-p)+2;ctx.beginPath();ctx.arc(0,0,(f.r||96)*(.25+p*.88),0,Math.PI*2);ctx.stroke();ctx.restore();
@@ -207,11 +263,11 @@
 
   function drawHud(state){
     ctx.fillStyle='rgba(5,30,48,.72)';roundRect(26,24,650,112,18);ctx.fill();
-    text('V8.3 · 双舰编队与炮火齐射',50,55,27,'#fff',null,0,'left');
+    text('V8.4 · 物理质感重构',50,55,27,'#fff',null,0,'left');
     text(`我方结构 ${Math.round(Grid.integrity(state.player)*100)}%`,50,96,23,'#dff7ff',null,0,'left');
     text(`击沉 ${state.kills}   金币 ${state.gold}`,650,96,22,'#ffd65a','#173047',3,'right');
-    text('点击锁定目标 → 4 发重炮连续齐射 → 沿同一弱点持续拆船',C.W/2,42,23,'#ffffff','#17435a',4);
-    text('双舰异型错位编队 · 敌舰炮火错峰 · 锁定舰沉没后自动切换',C.W/2,C.H-38,21,'#e9f8ff','#17435a',4);
+    text('重炮有惯性 · 舰体会横摇 · 大块残骸先漂浮再进水下沉',C.W/2,42,23,'#ffffff','#17435a',4);
+    text('远射弧线更高 · 落弹水花与烟迹 · 重击/爆炸按等级反馈',C.W/2,C.H-38,21,'#e9f8ff','#17435a',4);
 
     ctx.fillStyle='rgba(5,30,48,.68)';roundRect(C.W-118,25,88,60,14);ctx.fill();text(state.paused?'▶':'Ⅱ',C.W-74,55,28,'#fff');
     if(state.state==='lose'){
@@ -225,11 +281,11 @@
     beginWorld();drawSea(state);
     const shake=state.shake||0,sx=shake?U.rand(-shake,shake):0,sy=shake?U.rand(-shake,shake):0;
     ctx.save();ctx.translate(sx,sy);
-    drawShip(state.player);for(const e of state.enemies)drawShip(e);
+    drawShip(state.player,state);for(const e of state.enemies)drawShip(e,state);
     drawDebrisClusters(state);drawProjectiles(state);drawFx(state);drawAim(state);
     ctx.restore();
     drawHud(state);
   }
 
-  root.V8Render={init,resize,draw,drawShip,drawDebrisClusters,drawAim,screenToWorld,shipBounds};
+  root.V8Render={init,resize,draw,drawShip,drawDebrisClusters,drawAim,screenToWorld,shipBounds,shipVisualPose};
 })(typeof globalThis!=='undefined'?globalThis:this);
