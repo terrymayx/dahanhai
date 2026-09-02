@@ -1,12 +1,11 @@
 (function(root){
   'use strict';
 
-  // V9.0.2: destroyed cells are now erased directly inside the ship's
-  // offscreen surface by V9VectorShip.cutDestroyedCells().
-  // Keeping this file as a compatibility shim avoids clearing the already
-  // rendered sea/background on the main canvas.
+  // V9.1.0: destroyed cells are no longer erased. The vector ship renderer
+  // keeps the damaged hull visible and renders charred burning areas instead.
+  // This compatibility shim remains so the existing script order stays stable.
   root.V8DestroyedCellCleanup={
     active:false,
-    reason:'handled-inside-vector-ship-surface'
+    reason:'destroyed-cells-render-as-burning-damage'
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
