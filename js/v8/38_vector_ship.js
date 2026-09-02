@@ -122,12 +122,21 @@
     }
   }
 
+  // Destroyed cells must leave absolutely no texture/outline behind.
+  // Erase them on the offscreen ship surface, with a tiny overlap so adjacent
+  // dead cells merge into one clean opening and anti-aliased seams cannot survive.
   function cutDestroyedCells(ctx,ship){
-    ctx.save();ctx.globalCompositeOperation='destination-out';
-    for(const cell of ship.cells||[]){if(cell.alive)continue;traceOrganicHole(ctx,ship,cell,cell.type==='hull'?.78:.62);ctx.fillStyle='rgba(0,0,0,1)';ctx.fill();}
-    ctx.restore();
-    ctx.save();ctx.strokeStyle='rgba(47,26,17,.82)';ctx.lineWidth=2.1;
-    for(const cell of ship.cells||[]){if(cell.alive)continue;traceOrganicHole(ctx,ship,cell,cell.type==='hull'?.80:.64);ctx.stroke();}
+    const cellSize=ship.cellSize||16;
+    const overlap=Math.max(1.25,cellSize*.08);
+    ctx.save();
+    ctx.globalCompositeOperation='destination-out';
+    ctx.fillStyle='rgba(0,0,0,1)';
+    for(const cell of ship.cells||[]){
+      if(cell.alive)continue;
+      const p=Grid.cellCenterLocal(ship,cell);
+      const half=cellSize*.5+overlap;
+      ctx.fillRect(p.x-half,p.y-half,half*2,half*2);
+    }
     ctx.restore();
   }
 
@@ -151,5 +160,5 @@
     }
   }
 
-  root.V9VectorShip={hullProfile,traceHullPath,traceDeckPath,damageSeed,traceOrganicHole,drawShipLocal,drawDebrisClusterLocal,drawPlanks,drawMastsAndSails,drawCannons,drawDamageMarks};
+  root.V9VectorShip={hullProfile,traceHullPath,traceDeckPath,damageSeed,traceOrganicHole,drawShipLocal,drawDebrisClusterLocal,drawPlanks,drawMastsAndSails,drawCannons,drawDamageMarks,cutDestroyedCells};
 })(typeof globalThis!=='undefined'?globalThis:this);
