@@ -12,17 +12,22 @@ assert(B,'V8 battle module must exist');
 const state=B.newGame();
 state.spawnT=0;
 B.update(state,.05);
-assert.strictEqual(B.activeEnemies(state).length,1,'first spawn should create exactly one active enemy');
+assert.strictEqual(B.activeEnemies(state).length,2,'first spawn should create exactly one enemy pair');
 
 state.spawnT=0;
 B.update(state,.05);
-assert.strictEqual(B.activeEnemies(state).length,1,'while one enemy is alive, no second enemy may spawn');
+assert.strictEqual(B.activeEnemies(state).length,2,'while the pair is alive, no extra enemies may spawn');
 
-const first=B.activeEnemies(state)[0];
-first.state='sink';
-first.sinkT=0;
+let active=B.activeEnemies(state);
+active[0].state='sink';active[0].sinkT=0;
 state.spawnT=0;
 B.update(state,.05);
-assert.strictEqual(B.activeEnemies(state).length,1,'after the current enemy sinks, the next enemy may spawn');
+assert.strictEqual(B.activeEnemies(state).length,1,'one surviving partner must block replacement spawning');
 
-console.log('V8.0 single-enemy tests passed');
+active=B.activeEnemies(state);
+active[0].state='sink';active[0].sinkT=0;
+state.spawnT=0;
+B.update(state,.05);
+assert.strictEqual(B.activeEnemies(state).length,2,'after both enemies sink, the next pair may spawn');
+
+console.log('V8 paired-enemy spawn regression passed');
