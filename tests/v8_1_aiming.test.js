@@ -14,10 +14,21 @@ assert(aim&&aim.shipId===e.id,'aim stores target ship');
 assert.strictEqual(aim.gx,targetCell.gx);assert.strictEqual(aim.gy,targetCell.gy);
 state.shotIndex=0;
 B.firePlayer(state,e);
-const p=state.projectiles[state.projectiles.length-1];
-const expected=Math.atan2(target.y-430,target.x-610);
-const actual=Math.atan2(p.vy,p.vx);
+let p=state.projectiles[state.projectiles.length-1];
+let expected=Math.atan2(target.y-430,target.x-610);
+let actual=Math.atan2(p.vy,p.vx);
 assert(Math.abs(actual-expected)<1e-6,'player cannon direction must use clicked local point, not ship center');
+
+// The selected point belongs to the ship, not to the sea: moving the ship must move the aim point too.
+e.x+=80;
+state.shotIndex=0;
+B.firePlayer(state,e);
+p=state.projectiles[state.projectiles.length-1];
+const movedTarget={x:target.x+80,y:target.y};
+expected=Math.atan2(movedTarget.y-430,movedTarget.x-610);
+actual=Math.atan2(p.vy,p.vx);
+assert(Math.abs(actual-expected)<1e-6,'local aim must follow the enemy ship as it moves');
+
 for(const c of e.cells){c.alive=false;c.hp=0;}
 e.cells[0].alive=true;e.cells[0].hp=e.cells[0].maxHp;
 B.evaluateShip(state,e);
