@@ -8,6 +8,7 @@
     gunship:{speed:60,fireMin:1.8,fireMax:2.7,gold:105},
     manowar:{speed:40,fireMin:2.2,fireMax:3.0,gold:190},
   };
+  const SALVO_COUNT=4,SALVO_GAP=.11,SALVO_ARCS=[158,174,188,166];
 
   function addSplinters(state,x,y,count,power){
     power=power||1;
@@ -163,7 +164,7 @@
     player.id='player';player.criticalThreshold=.24;recomputeShipSystems(player);
     const state={
       state:'playing',time:0,player,enemies:[],projectiles:[],fx:[],texts:[],debrisClusters:[],
-      focus:null,aim:null,gold:0,kills:0,wave:1,spawnT:.6,playerFireT:.15,shotIndex:0,nextEnemyId:1,
+      focus:null,aim:null,salvo:null,gold:0,kills:0,wave:1,spawnT:.6,playerFireT:.15,shotIndex:0,nextEnemyId:1,
       shake:0,hitStop:0,paused:false
     };
     return decorateState(state);
@@ -175,27 +176,42 @@
     const spec=ENEMY[kind]||ENEMY.sloop;
     e.id='e'+state.nextEnemyId++;e.gold=spec.gold;e.criticalThreshold=.34;
     e.shotT=U.rand(spec.fireMin,spec.fireMax);recomputeShipSystems(e);
+    if(Number.isFinite(opts.stopX))e.stopX=opts.stopX;
     state.enemies.push(e);return e;
+  }
+
+  function partnerKind(state,lead){
+    if(lead==='manowar')return 'gunship';
+    if(lead==='gunship')return state.time>30?'manowar':'sloop';
+    return 'gunship';
   }
 
   function spawnEnemyPair(state,kind,opts){
     opts=opts||{};kind=kind||'sloop';
     const x=opts.x==null?2080:opts.x;
     const centerY=opts.centerY==null?550:opts.centerY;
-    const gap=opts.gap==null?260:opts.gap;
-    return [
-      spawnEnemy(state,kind,{x,y:centerY-gap/2}),
-      spawnEnemy(state,kind,{x,y:centerY+gap/2})
-    ];
+    const gap=opts.gap==null?250:opts.gap;
+    const xStagger=opts.xStagger==null?110:opts.xStagger;
+    const kinds=opts.kinds||[kind,partnerKind(state,kind)];
+    const a=spawnEnemy(state,kinds[0],{x:x+xStagger/2,y:centerY-gap/2,stopX:920+xStagger/2});
+    const b=spawnEnemy(state,kinds[1],{x:x-xStagger/2,y:centerY+gap/2,stopX:920-xStagger/2});
+    const formationSpeed=Math.min(a.speed,b.speed);
+    a.formationSpeed=formationSpeed;b.formationSpeed=formationSpeed;
+    b.shotT=a.shotT+.55;
+    return [a,b];
   }
 
   function activeEnemies(state){return state.enemies.filter(e=>e.state==='active');}
 
-  function targetForPlayer(state){
-    if(state.focus&&state.focus.state==='active')return state.focus;
+  function nearestActiveTarget(state){
     let best=null,bestX=Infinity;
     for(const e of activeEnemies(state))if(e.x<bestX){best=e;bestX=e.x;}
     return best;
+  }
+
+  function targetForPlayer(state){
+    if(state.focus&&state.focus.state==='active')return state.focus;
+    return nearestActiveTarget(state);
   }
 
   function aimVelocity(x,y,tx,ty,speed){
@@ -218,14 +234,35 @@
     return {x:aim.x,y:aim.y};
   }
 
-  function firePlayer(state,target){
+  function firePlayer(state,target,volleyIndex){
     if(!target)return;
     const ys=[430,560,690],y=ys[state.shotIndex++%ys.length];
     const x=610,aim=currentAimPoint(state,target);
     const speed=900,v=aimVelocity(x,y,aim.x,aim.y,speed);
     const flightTime=Math.hypot(aim.x-x,aim.y-y)/speed;
-    P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:24,side:'player',life:3,penetration:78,arcHeight:170,flightTime});
+    const arcHeight=Number.isInteger(volleyIndex)?SALVO_ARCS[volleyIndex%SALVO_ARCS.length]:170;
+    P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:24,side:'player',life:3,penetration:78,arcHeight,flightTime});
     state.fx.push({k:'muzzle',x:x+8,y,t:0,dur:.16});
+  }
+
+  function startPlayerSalvo(state,target){
+    if(!state||state.salvo||!target||target.state!=='active')return false;
+    state.salvo={targetId:target.id,index:0,remaining:SALVO_COUNT,t:0};
+    return true;
+  }
+
+  function updatePlayerSalvo(state,dt){
+    const salvo=state.salvo;if(!salvo)return;
+    salvo.t-=dt;
+    if(salvo.t>0)return;
+    let target=state.enemies.find(e=>e.id===salvo.targetId&&e.state==='active');
+    if(!target)target=targetForPlayer(state);
+    if(!target){state.salvo=null;return;}
+    salvo.targetId=target.id;
+    firePlayer(state,target,salvo.index);
+    salvo.index++;salvo.remaining--;
+    if(salvo.remaining<=0){state.salvo=null;return;}
+    salvo.t=SALVO_GAP;
   }
 
   function randomAliveCell(ship){
@@ -250,14 +287,19 @@
     const ratio=G.integrity(ship);
     if(ship.side==='player'){
       if(ratio<=.24&&state.state!=='lose'){
-        state.state='lose';ship.state='wrecked';state.focus=null;state.aim=null;
+        state.state='lose';ship.state='wrecked';state.focus=null;state.aim=null;state.salvo=null;
       }
       return ratio;
     }
     if(ratio<=.34&&ship.state==='active'){
+      const wasFocused=state.focus===ship;
       ship.state='sink';ship.sinkT=0;state.gold+=ship.gold||0;state.kills++;
-      if(state.focus===ship)state.focus=null;
       if(state.aim&&state.aim.shipId===ship.id)state.aim=null;
+      if(wasFocused)setFocus(state,nearestActiveTarget(state));
+      if(state.salvo&&state.salvo.targetId===ship.id){
+        const next=targetForPlayer(state);
+        if(next)state.salvo.targetId=next.id;else state.salvo=null;
+      }
       state.fx.push({k:'boom',x:ship.x,y:ship.y,t:0,dur:.75});
       state.shake=Math.max(state.shake||0,7);
     }
@@ -311,8 +353,10 @@
         e.sinkT+=dt;e.y+=24*dt;e.rotation+=.18*dt;continue;
       }
       if(e.state!=='active')continue;
-      if(e.x>920)e.x-=e.speed*dt;
-      else e.x=920;
+      const stopX=Number.isFinite(e.stopX)?e.stopX:920;
+      const moveSpeed=Number.isFinite(e.formationSpeed)?Math.min(e.speed,e.formationSpeed):e.speed;
+      if(e.x>stopX)e.x=Math.max(stopX,e.x-moveSpeed*dt);
+      else e.x=stopX;
       if(e.rudderAlive===false)e.rotation+=Math.sin(state.time*3+(e.ph||0))*.0025;
       e.shotT-=dt;
       if(e.x<1450&&e.shotT<=0){
@@ -322,10 +366,11 @@
     }
 
     state.playerFireT-=dt;
-    if(state.playerFireT<=0){
-      const target=targetForPlayer(state);if(target)firePlayer(state,target);
+    if(state.playerFireT<=0&&!state.salvo){
+      const target=targetForPlayer(state);if(target)startPlayerSalvo(state,target);
       state.playerFireT=C.PLAYER_FIRE_INTERVAL;
     }
+    updatePlayerSalvo(state,dt);
 
     P.updateAll(state,dt);
     updateCells(state,dt);updateFx(state,dt);updateDebrisClusters(state,dt);
@@ -339,7 +384,7 @@
   }
 
   root.V8Battle={
-    ENEMY,newGame,spawnEnemy,spawnEnemyPair,activeEnemies,targetForPlayer,firePlayer,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint,
+    ENEMY,newGame,spawnEnemy,spawnEnemyPair,activeEnemies,targetForPlayer,firePlayer,startPlayerSalvo,updatePlayerSalvo,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint,
     triggerPowderBlast,applyComponentDestroyed,recomputeShipSystems,createDebrisClusters,updateDebrisClusters
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
