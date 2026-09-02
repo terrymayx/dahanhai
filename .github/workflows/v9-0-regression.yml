@@ -12,11 +12,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: V9.0 vector geometry
-        run: node tests/v9_0_vector_geometry.test.js
-      - name: V9.0 organic ship visuals
-        run: node tests/v9_0_damage_visual_contract.test.js
-      - name: V9.0 renderer integration
-        run: node tests/v9_0_render_integration.test.js
-      - name: V9.0 entry contract
-        run: node tests/v9_0_entry_contract.test.js
+      - name: V9 + V8 full regression
+        shell: bash
+        run: |
+          set -e
+          for t in tests/v9_0*.test.js tests/v8_6*.test.js tests/v8_5*.test.js tests/v8_4*.test.js tests/v8_3*.test.js tests/v8_2*.test.js tests/v8_1*.test.js tests/v8_0*.test.js; do
+            [ -e "$t" ] || continue
+            echo "== $t =="
+            node "$t"
+          done
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -e
+          for f in js/v8/*.js; do node --check "$f"; done
+      - name: Legacy V6/V7 regression
+        shell: bash
+        run: |
+          set -e
+          cp index.html /tmp/v9-index.html
+          cp legacy_v7.html index.html
+          for t in tests/v6*.test.js tests/v7*.test.js; do
+            [ -e "$t" ] || continue
+            echo "== $t =="
+            node "$t"
+          done
+          cp /tmp/v9-index.html index.html
+          git diff --exit-code
