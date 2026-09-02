@@ -1,0 +1,15 @@
+const fs=require('fs');
+const vm=require('vm');
+const assert=require('assert');
+const ctx={console,Math,setTimeout,clearTimeout};ctx.globalThis=ctx;vm.createContext(ctx);
+for(const f of ['js/v8/00_v8_base.js','js/v8/10_ship_grid.js','js/v8/20_projectiles.js','js/v8/30_battle.js'])vm.runInContext(fs.readFileSync(f,'utf8'),ctx,{filename:f});
+const B=ctx.V8Battle;
+const state=B.newGame();state.time=0;
+const pair=B.spawnEnemyPair(state);
+assert.strictEqual(pair.length,2,'formation must still contain exactly two enemies');
+assert.notStrictEqual(pair[0].kind,pair[1].kind,'paired enemies must use different ship types');
+const dx=Math.abs(pair[0].x-pair[1].x),dy=Math.abs(pair[0].y-pair[1].y);
+assert(dx>=80&&dx<=150,'paired enemies must be horizontally staggered by roughly 80-150px');
+assert(dy>=220&&dy<=280,'paired enemies must remain clearly separated vertically');
+assert(Math.abs(pair[0].shotT-pair[1].shotT)>=.35,'paired enemies must stagger their opening fire timing');
+console.log('V8.3 formation tests passed');
