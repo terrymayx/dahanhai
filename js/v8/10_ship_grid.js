@@ -10,6 +10,7 @@
   const CELL_HP={hull:28,deck:20,beam:48,core:48,powder:18,rudder:24,mast:26,cannon:26};
   const CELL_WEIGHT={hull:1,deck:1,beam:3,core:3,powder:1,rudder:1,mast:1,cannon:1};
   const MATERIAL_RESISTANCE={hull:34,deck:24,beam:52,core:52,powder:20,rudder:28,mast:30,cannon:30};
+  const IMPACT_FORCE={deck:2.2,hull:3.2,mast:3.8,cannon:3.8,rudder:3.8,beam:5.2,core:5.2,powder:5.8};
   const CRITICAL_TYPES=new Set(['beam','powder','rudder','mast','cannon']);
 
   function key(gx,gy){return gx+','+gy;}
@@ -276,7 +277,7 @@
   }
 
   root.V8ShipGrid={
-    SPECS,CELL_HP,CELL_WEIGHT,MATERIAL_RESISTANCE,createTemplateShip,worldToLocal,localToWorld,
+    SPECS,CELL_HP,CELL_WEIGHT,MATERIAL_RESISTANCE,IMPACT_FORCE,createTemplateShip,worldToLocal,localToWorld,
     localToGrid,cellCenterLocal,cellCenterWorld,damageCell,integrity,connectedComponents,
     mainConnectedKeys,detachDisconnectedComponents,detachDisconnected,firstCellAlongSegment,pointHitsLiveCell
   };
