@@ -12,5 +12,5 @@ jobs:
           node-version: '22'
       - name: Check JavaScript syntax
         run: for f in js/*.js; do node --check "$f"; done
-      - name: Run V7.0 regression
-        run: node tests/v7_0_deck_horde.test.js
+      - name: Run full regression suite
+        run: for f in tests/*.test.js; do echo "== $f =="; node "$f"; done
