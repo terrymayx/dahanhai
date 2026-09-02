@@ -10,6 +10,39 @@
   };
   const SALVO_COUNT=4,SALVO_GAP=.11,SALVO_ARCS=[158,174,188,166],SALVO_ARC_VARIATION=[-10,4,12,-4];
   const SHIP_MASS={sloop:.75,gunship:1,manowar:1.35,player:1.45};
+  const FEEDBACK={
+    light:{shake:1,hitStop:0},
+    medium:{shake:4,hitStop:.032},
+    heavy:{shake:7,hitStop:.052},
+    critical:{shake:11,hitStop:.072}
+  };
+  const EVENT_LEVEL={
+    impact_light:'light',impact_medium:'medium',impact_heavy:'heavy',impact_critical:'critical',
+    beam_break:'heavy',powder_blast:'critical'
+  };
+
+  function feedbackLevelFor(cell,res,eventType){
+    if(eventType==='powder_blast')return 'critical';
+    if(!cell)return 'light';
+    if((cell.type==='beam'||cell.type==='core')&&res&&res.destroyed)return 'heavy';
+    if(res&&res.destroyed&&['hull','mast','cannon','rudder','powder'].includes(cell.type))return 'medium';
+    return 'light';
+  }
+
+  function emitCombatEvent(state,type,payload){
+    if(!state)return null;
+    payload=payload||{};
+    if(!state.combatEvents)state.combatEvents=[];
+    state.combatEvents.push({type,payload,time:state.time||0});
+    if(state.combatEvents.length>32)state.combatEvents.splice(0,state.combatEvents.length-32);
+    const level=EVENT_LEVEL[type]||null;
+    if(level){
+      const cfg=FEEDBACK[level];
+      state.shake=Math.min(12,Math.max(state.shake||0,cfg.shake));
+      state.hitStop=Math.min(.075,Math.max(state.hitStop||0,cfg.hitStop));
+    }
+    return level;
+  }
 
   function ensureShipPhysics(ship){
     if(!ship)return null;
@@ -155,16 +188,17 @@
     chain.triggered.add(id);
     const center=G.cellCenterWorld(ship,cell);
     state.fx.push({k:'powderBlast',x:center.x,y:center.y,t:0,dur:.62,r:96});
-    state.shake=Math.max(state.shake||0,12);
-    state.hitStop=Math.max(state.hitStop||0,.07);
+    emitCombatEvent(state,'powder_blast',{x:center.x,y:center.y,shipId:ship.id,cellType:cell.type});
+    const dx=center.x-ship.x,dy=center.y-ship.y,d=Math.hypot(dx,dy)||1;
+    applyHitImpulse(ship,cell,center,{vx:dx/d*900,vy:dy/d*900,damage:38,side:'blast'},9/((G.IMPACT_FORCE&&G.IMPACT_FORCE.powder)||5.8));
     addSplinters(state,center.x,center.y,24,1.8);
 
     const destroyed=[];
     for(const target of ship.cells){
       if(!target.alive)continue;
-      const dx=target.gx-cell.gx,dy=target.gy-cell.gy,d=Math.hypot(dx,dy);
-      if(d>2.01)continue;
-      const damage=d<=1.05?38:20;
+      const tx=target.gx-cell.gx,ty=target.gy-cell.gy,dist=Math.hypot(tx,ty);
+      if(dist>2.01)continue;
+      const damage=dist<=1.05?38:20;
       const res=G.damageCell(ship,target,damage);
       if(res.destroyed){
         destroyed.push(target);
@@ -184,12 +218,11 @@
     if(detached.length||lost>=8){
       state.fx.push({k:'structureBreak',x:pos.x,y:pos.y,t:0,dur:.52,r:44+Math.min(90,lost*6)});
       addSplinters(state,pos.x,pos.y,Math.min(30,12+detached.length*2),1.65);
-      state.shake=Math.max(state.shake||0,9);
-      state.hitStop=Math.max(state.hitStop||0,.07);
+      emitCombatEvent(state,'beam_break',{x:pos.x,y:pos.y,shipId:ship.id,lost});
     }else if(lost>=3){
       state.fx.push({k:'impactBurst',x:pos.x,posY:pos.y,y:pos.y,t:0,dur:.34,r:30+lost*4});
       addSplinters(state,pos.x,pos.y,Math.min(20,8+lost*2),1.25);
-      state.shake=Math.max(state.shake||0,4);
+      emitCombatEvent(state,'impact_medium',{x:pos.x,y:pos.y,shipId:ship.id,lost});
     }
   }
 
@@ -218,6 +251,8 @@
   function decorateState(state){
     state.onCellHit=function(ship,cell,pos,res,p){
       applyHitImpulse(ship,cell,pos,p);
+      const level=feedbackLevelFor(cell,res);
+      emitCombatEvent(state,'impact_'+level,{x:pos.x,y:pos.y,shipId:ship.id,cellType:cell.type,destroyed:!!res.destroyed});
       state.fx.push({k:'hit',x:pos.x,y:pos.y,t:0,dur:.18,side:p.side});
       state.texts.push({x:pos.x,y:pos.y-18,text:'-'+p.damage,t:.65});
       evaluateShip(state,ship);
@@ -226,7 +261,10 @@
       applyComponentDestroyed(state,ship,cell,pos,{triggered:new Set()});
     };
     state.onShipCritical=function(ship){evaluateShip(state,ship);};
-    state.onProjectileSplash=function(p,pos){addWaterSplashFx(state,pos.x,pos.y,.82);};
+    state.onProjectileSplash=function(p,pos){
+      emitCombatEvent(state,'projectile_splash',{x:pos.x,y:pos.y,side:p.side});
+      addWaterSplashFx(state,pos.x,pos.y,.82);
+    };
     return state;
   }
 
@@ -234,7 +272,7 @@
     const player=G.createTemplateShip('player','player',C.PLAYER_X,C.PLAYER_Y);
     player.id='player';player.criticalThreshold=.24;recomputeShipSystems(player);ensureShipPhysics(player);
     const state={
-      state:'playing',time:0,player,enemies:[],projectiles:[],fx:[],texts:[],debrisClusters:[],
+      state:'playing',time:0,player,enemies:[],projectiles:[],fx:[],texts:[],debrisClusters:[],combatEvents:[],
       focus:null,aim:null,salvo:null,gold:0,kills:0,wave:1,spawnT:.6,playerFireT:.15,shotIndex:0,nextEnemyId:1,
       shake:0,hitStop:0,paused:false
     };
@@ -374,7 +412,7 @@
         if(next)state.salvo.targetId=next.id;else state.salvo=null;
       }
       state.fx.push({k:'boom',x:ship.x,y:ship.y,t:0,dur:.75});
-      state.shake=Math.max(state.shake||0,7);
+      emitCombatEvent(state,'impact_heavy',{x:ship.x,y:ship.y,shipId:ship.id,sink:true});
     }
     return ratio;
   }
@@ -461,6 +499,6 @@
   root.V8Battle={
     ENEMY,newGame,spawnEnemy,spawnEnemyPair,activeEnemies,targetForPlayer,firePlayer,startPlayerSalvo,updatePlayerSalvo,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint,
     triggerPowderBlast,applyComponentDestroyed,recomputeShipSystems,createDebrisClusters,updateDebrisClusters,
-    ensureShipPhysics,applyHitImpulse,updateShipPhysics,addWaterSplashFx
+    ensureShipPhysics,applyHitImpulse,updateShipPhysics,addWaterSplashFx,feedbackLevelFor,emitCombatEvent
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
