@@ -11,12 +11,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: V8.3 RED GREEN
+      - name: V8 full regression
         shell: bash
         run: |
-          status=0
-          node tests/v8_3_target_lock.test.js || status=1
-          node tests/v8_3_salvo.test.js || status=1
-          node tests/v8_3_formation.test.js || status=1
-          node tests/v8_3_render_entry.test.js || status=1
-          exit $status
+          set -e
+          for t in tests/v8_*.test.js; do echo "== $t =="; node "$t"; done
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -e
+          for f in js/v8/*.js; do node --check "$f"; done
+      - name: Legacy V6/V7 regression
+        shell: bash
+        run: |
+          set -e
+          cp index.html /tmp/v8-index.html
+          cp legacy_v7.html index.html
+          for t in tests/v6*.test.js tests/v7*.test.js; do echo "== $t =="; node "$t"; done
+          cp /tmp/v8-index.html index.html
+          git diff --exit-code
