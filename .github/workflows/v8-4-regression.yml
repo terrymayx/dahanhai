@@ -15,3 +15,4 @@ jobs:
         shell: bash
         run: |
           node tests/v8_4_ship_impulse.test.js
+          node tests/v8_4_ballistic_feel.test.js
