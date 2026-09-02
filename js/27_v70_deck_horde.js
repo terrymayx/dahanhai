@@ -64,7 +64,14 @@ function v70NearestLivingCrew(b){
 }
 function queueV70Death(b,kind){
   if(!b||b.v70DeathPending)return false;
-  b.v70DeathPending=kind||'downed';v70PendingDeaths.push(b);
+  const lethal=b.hp<=0;
+  b.v70DeathPending=kind||'downed';
+  if(v70InsideUpdate&&lethal){
+    /* 旧核心会在本帧按 hp>0 过滤，V6.8 随后会回收被过滤对象。
+       用极小待结算 HP 让对象活到旧 update 完整返回；V7 flush 再恢复为 0。 */
+    b.v70LethalPending=true;b.hp=.001;
+  }
+  v70PendingDeaths.push(b);
   if(!v70InsideUpdate)flushV70PendingDeaths();
   return true;
 }
@@ -87,13 +94,14 @@ function releaseV70Boarder(b){
   if(typeof boarderPool!=='undefined'&&boarderPool&&typeof boarderPool.release==='function')boarderPool.release(b);
 }
 function queueV70Downed(b){
-  const a=ensureV70State();detachV70Boarder(b);b.ship=null;b.boardingChannel=null;b.state='downed';b.v70DeathPending=null;b.v70DownT=.5+Math.random()*.3;
+  const a=ensureV70State();detachV70Boarder(b);b.hp=0;b.ship=null;b.boardingChannel=null;b.state='downed';b.v70DeathPending=null;b.v70LethalPending=false;b.v70DownT=.5+Math.random()*.3;
   while(a.length>=V70_MAX_DOWNED)releaseV70Boarder(a.shift());
   a.push(b);return true;
 }
 function dropV70Overboard(b){
   if(!b)return false;
-  if(b.hp>0&&typeof _damageBoarderV70==='function')_damageBoarderV70(b,b.hp,b.x,b.y);
+  if(b.v70LethalPending){b.hp=0;b.v70LethalPending=false;}
+  else if(b.hp>0&&typeof _damageBoarderV70==='function')_damageBoarderV70(b,b.hp,b.x,b.y);
   detachV70Boarder(b);b.ship=null;b.boardingChannel=null;b.v70DeathPending=null;
   if(typeof emitPirateOverboard==='function')emitPirateOverboard(b);else if(typeof splashFx==='function')splashFx(b.x,b.y,.7);
   releaseV70Boarder(b);return true;
@@ -102,6 +110,7 @@ function flushV70PendingDeaths(){
   for(let i=0;i<v70PendingDeaths.length;i++){
     const b=v70PendingDeaths[i],kind=b.v70DeathPending;
     if(!kind)continue;
+    if(b.v70LethalPending)b.hp=0;
     if(kind==='overboard')dropV70Overboard(b);else queueV70Downed(b);
   }
   v70PendingDeaths.length=0;
