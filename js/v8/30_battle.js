@@ -18,6 +18,48 @@
     });
   }
 
+  function createDebrisClusters(state,ship,components){
+    if(!state.debrisClusters)state.debrisClusters=[];
+    for(const comp of components||[]){
+      if(!comp||!comp.length)continue;
+      if(comp.length<2){
+        const c=comp[0],w=G.cellCenterWorld(ship,c);
+        state.fx.push({
+          k:'debris',x:w.x,y:w.y,vx:U.rand(-130,150),vy:U.rand(-160,55),
+          vr:U.rand(-5,5),rot:ship.rotation,t:0,dur:U.rand(.65,1.05),r:ship.cellSize*.78,
+          cellType:c.type,side:ship.side
+        });
+        continue;
+      }
+      const points=comp.map(c=>({cell:c,p:G.cellCenterLocal(ship,c)}));
+      let cx=0,cy=0;
+      for(const item of points){cx+=item.p.x;cy+=item.p.y;}
+      cx/=points.length;cy/=points.length;
+      const world=G.localToWorld(ship,cx,cy);
+      state.debrisClusters.push({
+        x:world.x,y:world.y,vx:U.rand(-45,70),vy:U.rand(-55,-5),
+        rotation:ship.rotation,angularVelocity:U.rand(-1.4,1.4),
+        age:0,life:U.rand(2.2,3.0),sinkProgress:0,cellSize:ship.cellSize,
+        side:ship.side,baseColor:ship.baseColor||'#714128',deckColor:ship.deckColor||'#b07155',
+        cells:points.map(item=>({x:item.p.x-cx,y:item.p.y-cy,type:item.cell.type}))
+      });
+    }
+    return state.debrisClusters;
+  }
+
+  function updateDebrisClusters(state,dt){
+    if(!state.debrisClusters)return;
+    for(const cluster of state.debrisClusters){
+      cluster.age=(cluster.age||0)+dt;
+      cluster.sinkProgress=Math.min(1,cluster.age/cluster.life);
+      cluster.x+=cluster.vx*dt;
+      cluster.vy+=24*dt;
+      cluster.y+=cluster.vy*dt+34*cluster.sinkProgress*dt;
+      cluster.rotation+=cluster.angularVelocity*dt;
+    }
+    state.debrisClusters=state.debrisClusters.filter(c=>c.age<c.life&&c.sinkProgress<1);
+  }
+
   function recomputeShipSystems(ship){
     if(!ship||!ship.cells)return ship;
     const alive=t=>ship.cells.some(c=>c.alive&&c.type===t);
@@ -69,16 +111,6 @@
   }
 
   function emitDetachedFeedback(state,ship,pos,detached,lost){
-    if(detached.length){
-      for(const c of detached){
-        const w=G.cellCenterWorld(ship,c);
-        state.fx.push({
-          k:'debris',x:w.x,y:w.y,vx:U.rand(-130,150),vy:U.rand(-160,55),
-          vr:U.rand(-5,5),rot:ship.rotation,t:0,dur:U.rand(.65,1.05),r:ship.cellSize*.78,
-          cellType:c.type,side:ship.side
-        });
-      }
-    }
     if(detached.length||lost>=8){
       state.fx.push({k:'structureBreak',x:pos.x,y:pos.y,t:0,dur:.52,r:44+Math.min(90,lost*6)});
       addSplinters(state,pos.x,pos.y,Math.min(30,12+detached.length*2),1.65);
@@ -103,7 +135,9 @@
       recomputeShipSystems(ship);
     }
     addSplinters(state,pos.x,pos.y,6,1);
-    const detached=G.detachDisconnected(ship);
+    const components=G.detachDisconnectedComponents(ship);
+    createDebrisClusters(state,ship,components);
+    const detached=[];for(const comp of components)detached.push(...comp);
     recomputeShipSystems(ship);
     const lost=1+blastDestroyed.length+detached.length;
     emitDetachedFeedback(state,ship,pos,detached,lost);
@@ -128,7 +162,7 @@
     const player=G.createTemplateShip('player','player',C.PLAYER_X,C.PLAYER_Y);
     player.id='player';player.criticalThreshold=.24;recomputeShipSystems(player);
     const state={
-      state:'playing',time:0,player,enemies:[],projectiles:[],fx:[],texts:[],
+      state:'playing',time:0,player,enemies:[],projectiles:[],fx:[],texts:[],debrisClusters:[],
       focus:null,aim:null,gold:0,kills:0,wave:1,spawnT:.6,playerFireT:.15,shotIndex:0,nextEnemyId:1,
       shake:0,hitStop:0,paused:false
     };
@@ -281,7 +315,7 @@
     }
 
     P.updateAll(state,dt);
-    updateCells(state,dt);updateFx(state,dt);
+    updateCells(state,dt);updateFx(state,dt);updateDebrisClusters(state,dt);
     state.enemies=state.enemies.filter(e=>e.state!=='sink'||e.sinkT<1.6);
   }
 
@@ -293,6 +327,6 @@
 
   root.V8Battle={
     ENEMY,newGame,spawnEnemy,activeEnemies,targetForPlayer,firePlayer,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint,
-    triggerPowderBlast,applyComponentDestroyed,recomputeShipSystems
+    triggerPowderBlast,applyComponentDestroyed,recomputeShipSystems,createDebrisClusters,updateDebrisClusters
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
