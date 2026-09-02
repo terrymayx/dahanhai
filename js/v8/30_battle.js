@@ -118,7 +118,7 @@
       state.shake=Math.max(state.shake||0,9);
       state.hitStop=Math.max(state.hitStop||0,.07);
     }else if(lost>=3){
-      state.fx.push({k:'impactBurst',x:pos.x,y:pos.y,t:0,dur:.34,r:30+lost*4});
+      state.fx.push({k:'impactBurst',x:pos.x,posY:pos.y,y:pos.y,t:0,dur:.34,r:30+lost*4});
       addSplinters(state,pos.x,pos.y,Math.min(20,8+lost*2),1.25);
       state.shake=Math.max(state.shake||0,4);
     }
@@ -262,7 +262,7 @@
     firePlayer(state,target,salvo.index);
     salvo.index++;salvo.remaining--;
     if(salvo.remaining<=0){state.salvo=null;return;}
-    salvo.t=SALVO_GAP;
+    salvo.t+=SALVO_GAP;
   }
 
   function randomAliveCell(ship){
