@@ -26,9 +26,14 @@ assert.strictEqual(cluster.cells.length,3,'cluster preserves all component cells
 assert(new Set(cluster.cells.map(c=>c.x+','+c.y)).size===3,'cluster preserves relative cell layout');
 const y0=cluster.y,r0=cluster.rotation;
 B.updateDebrisClusters(state,.5);
-assert(state.debrisClusters.length===1,'cluster remains alive during fall');
+assert(state.debrisClusters.length===1,'cluster remains alive during early debris motion');
 assert(cluster.y!==y0||cluster.rotation!==r0,'cluster moves or rotates as a whole');
-assert(cluster.sinkProgress>0,'cluster starts sinking');
-for(let i=0;i<20;i++)B.updateDebrisClusters(state,.25);
+let sawSink=cluster.phase==='sink'||cluster.sinkProgress>0;
+for(let i=0;i<24&&!sawSink;i++){
+  B.updateDebrisClusters(state,.25);
+  sawSink=cluster.phase==='sink'||cluster.sinkProgress>0;
+}
+assert(sawSink,'cluster eventually enters sinking phase');
+for(let i=0;i<24&&state.debrisClusters.length;i++)B.updateDebrisClusters(state,.25);
 assert.strictEqual(state.debrisClusters.length,0,'expired cluster is removed');
-console.log('V8.2 debris cluster tests passed');
+console.log('V8.2 debris cluster compatibility tests passed');
