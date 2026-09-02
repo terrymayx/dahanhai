@@ -15,3 +15,5 @@ jobs:
         run: node tests/v8_0_ship_grid.test.js
       - name: V8 Battle
         run: node tests/v8_0_battle.test.js
+      - name: V8 Renderer
+        run: node tests/v8_0_render_contract.test.js
