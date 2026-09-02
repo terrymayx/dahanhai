@@ -1,13 +1,24 @@
 (function(root){
   'use strict';
-  const C=root.V8Config,B=root.V8Battle;
-  if(!C||!B)throw new Error('V8 config and battle must load before combat tuning');
+  const C=root.V8Config,B=root.V8Battle,G=root.V8ShipGrid;
+  if(!C||!B||!G)throw new Error('V8 config, grid and battle must load before combat tuning');
 
   const PLAYER_FIRE_INTERVAL=1.35;
   const PLAYER_SALVO_COUNT=2;
   const PLAYER_SALVO_GAP=.28;
+  const CELL_DURABILITY={
+    hull:60,
+    deck:48,
+    beam:96,
+    core:96,
+    powder:36,
+    rudder:52,
+    mast:56,
+    cannon:56
+  };
 
   C.PLAYER_FIRE_INTERVAL=PLAYER_FIRE_INTERVAL;
+  Object.assign(G.CELL_HP,CELL_DURABILITY);
 
   const enemyTuning={
     sloop:{fireMin:3.6,fireMax:4.6},
@@ -20,11 +31,29 @@
     B.ENEMY[kind].fireMax=enemyTuning[kind].fireMax;
   }
 
+  function clearAttackMotion(ship){
+    if(!ship||!ship.physics)return;
+    const ph=ship.physics;
+    ph.impulseX=0;
+    ph.impulseY=0;
+    ph.angularVelocity=0;
+    ph.offsetX=0;
+    ph.offsetY=0;
+    ph.roll=0;
+  }
+
+  function clearAllShipAttackMotion(state){
+    if(!state)return;
+    clearAttackMotion(state.player);
+    for(const ship of state.enemies||[])clearAttackMotion(ship);
+  }
+
   const originalNewGame=B.newGame;
   B.newGame=function(){
     const state=originalNewGame();
     state.playerFireT=.8;
     state.shake=0;
+    clearAllShipAttackMotion(state);
     return state;
   };
 
@@ -47,6 +76,7 @@
 
   const originalUpdate=B.update;
   B.update=function(state,dt){
+    clearAllShipAttackMotion(state);
     if(state&&state.salvo&&state.salvo.remaining>PLAYER_SALVO_COUNT){
       state.salvo.remaining=PLAYER_SALVO_COUNT;
     }
@@ -63,9 +93,12 @@
       }
     }
 
-    // Camera shake is intentionally disabled. Ship recoil/roll and hit-stop remain.
+    // Camera shake and ship hit recoil are intentionally disabled.
+    // Natural renderer bobbing, debris motion and hit-stop remain.
     state.shake=0;
+    clearAllShipAttackMotion(state);
   };
 
-  B.CALM_FIRE={PLAYER_FIRE_INTERVAL,PLAYER_SALVO_COUNT,PLAYER_SALVO_GAP,enemyTuning};
+  B.CALM_FIRE={PLAYER_FIRE_INTERVAL,PLAYER_SALVO_COUNT,PLAYER_SALVO_GAP,enemyTuning,CELL_DURABILITY};
+  B.clearAttackMotion=clearAttackMotion;
 })(typeof globalThis!=='undefined'?globalThis:this);
