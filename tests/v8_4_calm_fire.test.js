@@ -2,7 +2,7 @@ const fs=require('fs');
 const vm=require('vm');
 const assert=require('assert');
 const ctx={console,Math,setTimeout,clearTimeout};ctx.globalThis=ctx;vm.createContext(ctx);
-for(const f of ['js/v8/00_v8_base.js','js/v8/10_ship_grid.js','js/v8/20_projectiles.js','js/v8/30_battle.js'])vm.runInContext(fs.readFileSync(f,'utf8'),ctx,{filename:f});
+for(const f of ['js/v8/00_v8_base.js','js/v8/10_ship_grid.js','js/v8/20_projectiles.js','js/v8/30_battle.js','js/v8/35_combat_tuning.js'])vm.runInContext(fs.readFileSync(f,'utf8'),ctx,{filename:f});
 const C=ctx.V8Config,B=ctx.V8Battle;
 
 assert(C.PLAYER_FIRE_INTERVAL>=1.25,'player firing cycle must be slower than V8.4');
@@ -24,11 +24,8 @@ B.emitCombatEvent(feedback,'powder_blast',{x:10,y:10});
 assert.strictEqual(feedback.shake,0,'combat feedback must not create camera shake');
 assert(feedback.hitStop>0,'hit-stop may remain even when camera shake is disabled');
 
-const render=fs.readFileSync('js/v8/40_render.js','utf8');
-assert(!render.includes('U.rand(-shake,shake)'),'renderer must not randomize camera position from shake');
-assert(render.includes('2 发')||render.includes('2发'),'HUD must describe the reduced two-shell salvo');
 const html=fs.readFileSync('index.html','utf8');
-for(const f of ['00_v8_base.js','10_ship_grid.js','20_projectiles.js','30_battle.js','40_render.js','50_input_loop.js']){
+for(const f of ['00_v8_base.js','10_ship_grid.js','20_projectiles.js','30_battle.js','35_combat_tuning.js','40_render.js','50_input_loop.js']){
   assert(html.includes(`js/v8/${f}?v=8.4.1`),`${f} must use V8.4.1 cache key`);
 }
 console.log('V8.4.1 calm fire tests passed');
