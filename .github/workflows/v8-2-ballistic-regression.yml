@@ -11,5 +11,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Ballistic arc RED/GREEN
+      - name: Ballistic arc
         run: node tests/v8_2_ballistic_arc.test.js
+      - name: V8.2.1 entry cache
+        run: node tests/v8_2_entry.test.js
