@@ -9,6 +9,15 @@
     manowar:{speed:40,fireMin:2.2,fireMax:3.0,gold:190},
   };
 
+  function addSplinters(state,x,y,count,power){
+    power=power||1;
+    for(let i=0;i<count;i++)state.fx.push({
+      k:'splinter',x,y,
+      vx:U.rand(-120,120)*power,vy:U.rand(-130,70)*power,
+      t:0,dur:U.rand(.35,.72),r:U.rand(3,7)*Math.min(1.35,power)
+    });
+  }
+
   function decorateState(state){
     state.onCellHit=function(ship,cell,pos,res,p){
       state.fx.push({k:'hit',x:pos.x,y:pos.y,t:0,dur:.18,side:p.side});
@@ -16,7 +25,30 @@
       evaluateShip(state,ship);
     };
     state.onCellDestroyed=function(ship,cell,pos){
-      for(let i=0;i<6;i++)state.fx.push({k:'splinter',x:pos.x,y:pos.y,vx:U.rand(-120,120),vy:U.rand(-120,80),t:0,dur:U.rand(.35,.7),r:U.rand(3,7)});
+      addSplinters(state,pos.x,pos.y,6,1);
+      const detached=G.detachDisconnected(ship);
+      const lost=1+detached.length;
+      if(detached.length){
+        for(const c of detached){
+          const w=G.cellCenterWorld(ship,c);
+          state.fx.push({
+            k:'debris',x:w.x,y:w.y,vx:U.rand(-130,150),vy:U.rand(-160,55),
+            vr:U.rand(-5,5),rot:ship.rotation,t:0,dur:U.rand(.65,1.05),r:ship.cellSize*.78,
+            cellType:c.type,side:ship.side
+          });
+        }
+      }
+      if(detached.length||lost>=8){
+        state.fx.push({k:'structureBreak',x:pos.x,y:pos.y,t:0,dur:.52,r:44+Math.min(90,lost*6)});
+        addSplinters(state,pos.x,pos.y,Math.min(30,12+detached.length*2),1.65);
+        state.shake=Math.max(state.shake,9);
+        state.hitStop=Math.max(state.hitStop,.07);
+      }else if(lost>=3){
+        state.fx.push({k:'impactBurst',x:pos.x,y:pos.y,t:0,dur:.34,r:30+lost*4});
+        addSplinters(state,pos.x,pos.y,Math.min(20,8+lost*2),1.25);
+        state.shake=Math.max(state.shake,4);
+      }
+      evaluateShip(state,ship);
     };
     state.onShipCritical=function(ship){evaluateShip(state,ship);};
     return state;
@@ -28,7 +60,7 @@
     const state={
       state:'playing',time:0,player,enemies:[],projectiles:[],fx:[],texts:[],
       focus:null,aim:null,gold:0,kills:0,wave:1,spawnT:.6,playerFireT:.15,shotIndex:0,nextEnemyId:1,
-      shake:0,paused:false
+      shake:0,hitStop:0,paused:false
     };
     return decorateState(state);
   }
@@ -60,16 +92,22 @@
     if(!state)return null;
     if(!ship||ship.state!=='active')return state.aim=null;
     const local=G.worldToLocal(ship,worldX,worldY),grid=G.localToGrid(ship,local.x,local.y);
-    state.aim={shipId:ship.id,gx:grid.gx,gy:grid.gy,x:worldX,y:worldY};
+    state.aim={shipId:ship.id,gx:grid.gx,gy:grid.gy,lx:local.x,ly:local.y,x:worldX,y:worldY};
     return state.aim;
+  }
+
+  function currentAimPoint(state,target){
+    const aim=state.aim&&target&&state.aim.shipId===target.id?state.aim:null;
+    if(!aim)return target?{x:target.x,y:target.y}:null;
+    if(Number.isFinite(aim.lx)&&Number.isFinite(aim.ly))return G.localToWorld(target,aim.lx,aim.ly);
+    return {x:aim.x,y:aim.y};
   }
 
   function firePlayer(state,target){
     if(!target)return;
     const ys=[430,560,690],y=ys[state.shotIndex++%ys.length];
-    const x=610,aim=state.aim&&state.aim.shipId===target.id?state.aim:null;
-    const tx=aim?aim.x:target.x,ty=aim?aim.y:target.y;
-    const v=aimVelocity(x,y,tx,ty,900);
+    const x=610,aim=currentAimPoint(state,target);
+    const v=aimVelocity(x,y,aim.x,aim.y,900);
     P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:24,side:'player',life:3,penetration:78});
     state.fx.push({k:'muzzle',x:x+8,y,t:0,dur:.16});
   }
@@ -103,6 +141,7 @@
       if(state.focus===ship)state.focus=null;
       if(state.aim&&state.aim.shipId===ship.id)state.aim=null;
       state.fx.push({k:'boom',x:ship.x,y:ship.y,t:0,dur:.75});
+      state.shake=Math.max(state.shake,7);
     }
     return ratio;
   }
@@ -120,15 +159,28 @@
   }
 
   function updateFx(state,dt){
-    for(const f of state.fx){f.t+=dt;if(f.k==='splinter'){f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=190*dt;}}
+    for(const f of state.fx){
+      f.t+=dt;
+      if(f.k==='splinter'||f.k==='debris'){
+        f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=190*dt;
+        if(f.k==='debris')f.rot=(f.rot||0)+(f.vr||0)*dt;
+      }
+    }
     state.fx=state.fx.filter(f=>f.t<f.dur);
     for(const t of state.texts){t.t-=dt;t.y-=18*dt;}
     state.texts=state.texts.filter(t=>t.t>0);
+    state.shake=Math.max(0,(state.shake||0)-dt*20);
   }
 
   function update(state,dt){
     if(!state||state.paused||state.state!=='playing')return;
-    dt=Math.min(.05,Math.max(0,dt));state.time+=dt;
+    dt=Math.min(.05,Math.max(0,dt));
+    if(state.hitStop>0){
+      state.hitStop=Math.max(0,state.hitStop-dt);
+      updateCells(state,dt);updateFx(state,dt);
+      return;
+    }
+    state.time+=dt;
 
     state.spawnT-=dt;
     if(state.spawnT<=0&&activeEnemies(state).length<1){
@@ -167,5 +219,5 @@
     if(state.focus)state.focus.focus=true;
   }
 
-  root.V8Battle={ENEMY,newGame,spawnEnemy,activeEnemies,targetForPlayer,firePlayer,fireEnemy,evaluateShip,update,setFocus,setAim};
+  root.V8Battle={ENEMY,newGame,spawnEnemy,activeEnemies,targetForPlayer,firePlayer,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint};
 })(typeof globalThis!=='undefined'?globalThis:this);
