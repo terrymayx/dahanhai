@@ -11,5 +11,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: V8.5 damage stage contract
-        run: node tests/v8_5_damage_stage.test.js
+      - name: V8.5 contracts
+        shell: bash
+        run: |
+          set -e
+          node tests/v8_5_damage_stage.test.js
+          node tests/v8_5_penetration_gate.test.js
+          node tests/v8_5_flooding.test.js
