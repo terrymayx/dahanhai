@@ -16,3 +16,4 @@ jobs:
         run: |
           node tests/v8_4_ship_impulse.test.js
           node tests/v8_4_ballistic_feel.test.js
+          node tests/v8_4_feedback_levels.test.js
