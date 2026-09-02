@@ -11,5 +11,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: V8 ShipGrid RED/GREEN
+      - name: V8 ShipGrid + Projectile
         run: node tests/v8_0_ship_grid.test.js
+      - name: V8 Battle
+        run: node tests/v8_0_battle.test.js
