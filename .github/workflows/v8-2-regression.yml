@@ -13,3 +13,5 @@ jobs:
           node-version: 22
       - name: V8.2 components
         run: node tests/v8_2_components.test.js
+      - name: V8.2 material penetration
+        run: node tests/v8_2_material_penetration.test.js
