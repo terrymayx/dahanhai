@@ -24,6 +24,7 @@ jobs:
           done
       - name: Legacy V6/V7 regression
         run: |
+          cp legacy_v7.html index.html
           for f in tests/v6*.test.js tests/v7*.test.js; do
             [ -f "$f" ] && node "$f"
           done
