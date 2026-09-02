@@ -5,10 +5,29 @@
 
   const PEN_COST=Grid.MATERIAL_RESISTANCE;
 
+  function estimateFlightTime(state,p){
+    const speed=Math.hypot(p.vx,p.vy)||1;
+    let target=null,tx=null,ty=null;
+    if(p.side==='player'){
+      const enemies=(state.enemies||[]).filter(s=>s.state==='active');
+      if(state.aim)target=enemies.find(s=>s.id===state.aim.shipId)||null;
+      if(!target)target=enemies[0]||null;
+      if(target&&state.aim&&state.aim.shipId===target.id&&Number.isFinite(state.aim.lx)&&Number.isFinite(state.aim.ly)){
+        const a=Grid.localToWorld(target,state.aim.lx,state.aim.ly);tx=a.x;ty=a.y;
+      }
+    }else target=state.player&&state.player.state==='active'?state.player:null;
+    if(target){
+      if(tx==null){tx=target.x;ty=target.y;}
+      return Math.max(.28,Math.min(2.2,Math.hypot(tx-p.x,ty-p.y)/speed));
+    }
+    return p.side==='player'?.78:1.2;
+  }
+
   function spawn(state,opts){
     const side=opts.side||'player';
-    const flightTime=Math.max(.08,opts.flightTime||0);
-    const arcHeight=Math.max(0,opts.arcHeight||0);
+    const base={x:opts.x,y:opts.y,vx:opts.vx||0,vy:opts.vy||0,side};
+    const flightTime=Math.max(.08,opts.flightTime==null?estimateFlightTime(state,base):opts.flightTime);
+    const arcHeight=Math.max(0,opts.arcHeight==null?(side==='player'?170:105):opts.arcHeight);
     const gravity=arcHeight>0?8*arcHeight/(flightTime*flightTime):0;
     const initialVz=arcHeight>0?4*arcHeight/flightTime:0;
     const p={
@@ -79,5 +98,5 @@
     state.projectiles=out;
   }
 
-  root.V8Projectile={PEN_COST,spawn,updateArc,updateAll};
+  root.V8Projectile={PEN_COST,spawn,estimateFlightTime,updateArc,updateAll};
 })(typeof globalThis!=='undefined'?globalThis:this);
