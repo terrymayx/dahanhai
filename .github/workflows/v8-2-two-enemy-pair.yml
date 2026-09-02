@@ -1,0 +1,15 @@
+name: V8.2 Two Enemy Pair Regression
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Two-enemy pair RED/GREEN
+        run: node tests/v8_2_two_enemy_pair.test.js
