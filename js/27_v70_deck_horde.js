@@ -51,7 +51,7 @@ function chooseV70CrewTarget(c){
   for(const b of g.boarders){
     if(b.v70DeathPending||b.hp<=0||b.state!=='fight')continue;
     let score=dist(c.x,c.y,b.x,b.y);
-    if(front)score+=Math.abs(ensureV70Lane(b)-desired)*145;
+    if(front)score+=Math.abs(ensureV70Lane(b)-desired)*240;
     if(c.id==='gunner')score-=v70LocalClusterCount(b,105)*34;
     if(score<bestScore){best=b;bestScore=score;}
   }
