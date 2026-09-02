@@ -15,3 +15,5 @@ jobs:
         run: node tests/v8_1_structure_break.test.js
       - name: V8.1 penetration
         run: node tests/v8_1_penetration.test.js
+      - name: V8.1 aiming
+        run: node tests/v8_1_aiming.test.js
