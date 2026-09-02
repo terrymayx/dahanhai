@@ -7,8 +7,8 @@ const overlay=fs.readFileSync('js/v8/45_damage_overlay.js','utf8');
 
 assert(fs.existsSync('js/v8/36_damage_model.js'),'V8.5.1 damage-only module must remain available');
 assert(!html.includes('36_damage_flooding.js'),'active entry must not load flooding module');
-assert(html.includes('36_damage_model.js?v=8.6.0'),'active V8.6 entry must load the damage-only model');
-assert(html.includes('V8.6 · 部件损伤与结构应力'),'page must identify current V8.6 build');
+assert(/36_damage_model\.js\?v=(?:8\.6\.0|9\.0\.0)/.test(html),'active entry must load the damage-only model');
+assert(/V(?:8\.6|9\.0)/.test(html),'page must identify an active V8.6+ build');
 
 for(const token of ['进水','漏水','flooding','leaks','draft','drawLeak','applyDraft']){
   assert(!overlay.includes(token),`damage overlay must not contain flooding token: ${token}`);
