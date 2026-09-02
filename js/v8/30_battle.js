@@ -122,6 +122,7 @@
 
   function createDebrisClusters(state,ship,components){
     if(!state.debrisClusters)state.debrisClusters=[];
+    const ph=ensureShipPhysics(ship)||{};
     for(const comp of components||[]){
       if(!comp||!comp.length)continue;
       if(comp.length<2){
@@ -138,10 +139,24 @@
       for(const item of points){cx+=item.p.x;cy+=item.p.y;}
       cx/=points.length;cy/=points.length;
       const world=G.localToWorld(ship,cx,cy);
+      const ox=world.x-ship.x,oy=world.y-ship.y,od=Math.hypot(ox,oy)||1;
+      const outX=ox/od,outY=oy/od;
+      const count=comp.length,sqrtCount=Math.sqrt(count);
+      const airTime=Math.min(.55,.35+sqrtCount*.025);
+      const floatTime=Math.min(1.5,.65+sqrtCount*.10);
+      const sinkTime=.85+sqrtCount*.22;
+      const life=airTime+floatTime+sinkTime;
+      const navVX=ship.side==='enemy'?-(ship.speed||0)*.25:0;
+      const navVY=0;
+      const outwardSpeed=28+Math.min(42,sqrtCount*7);
       state.debrisClusters.push({
-        x:world.x,y:world.y,vx:U.rand(-45,70),vy:U.rand(-55,-5),
-        rotation:ship.rotation,angularVelocity:U.rand(-1.4,1.4),
-        age:0,life:U.rand(2.2,3.0),sinkProgress:0,cellSize:ship.cellSize,
+        x:world.x,y:world.y,
+        vx:navVX+(ph.impulseX||0)*5.5+outX*outwardSpeed,
+        vy:navVY+(ph.impulseY||0)*5.5+outY*outwardSpeed*.55-U.rand(8,24),
+        rotation:ship.rotation,
+        angularVelocity:U.rand(-1.2,1.2)+(cx/(ship.gridWidth*ship.cellSize||1))*.9,
+        age:0,phaseAge:0,phase:'airborne',airTime,floatTime,sinkTime,life,splashDone:false,
+        floatBaseY:world.y,bobPhase:U.rand(0,Math.PI*2),sinkProgress:0,cellSize:ship.cellSize,
         side:ship.side,baseColor:ship.baseColor||'#714128',deckColor:ship.deckColor||'#b07155',
         cells:points.map(item=>({x:item.p.x-cx,y:item.p.y-cy,type:item.cell.type}))
       });
@@ -151,13 +166,47 @@
 
   function updateDebrisClusters(state,dt){
     if(!state.debrisClusters)return;
+    const frames=dt*60;
     for(const cluster of state.debrisClusters){
       cluster.age=(cluster.age||0)+dt;
-      cluster.sinkProgress=Math.min(1,cluster.age/cluster.life);
-      cluster.x+=cluster.vx*dt;
-      cluster.vy+=24*dt;
-      cluster.y+=cluster.vy*dt+34*cluster.sinkProgress*dt;
-      cluster.rotation+=cluster.angularVelocity*dt;
+      cluster.phaseAge=(cluster.phaseAge||0)+dt;
+      if(cluster.phase==='airborne'){
+        const drag=Math.pow(.988,frames);
+        cluster.vx*=drag;cluster.vy*=drag;
+        cluster.vy+=42*dt;
+        cluster.x+=cluster.vx*dt;cluster.y+=cluster.vy*dt;
+        cluster.rotation+=cluster.angularVelocity*dt;
+        if(cluster.phaseAge>=cluster.airTime){
+          cluster.phase='float';cluster.phaseAge=0;cluster.floatBaseY=cluster.y;
+          cluster.vy*=.22;cluster.angularVelocity*=.62;
+          if(!cluster.splashDone){
+            cluster.splashDone=true;
+            const splashSize=Math.min(1.85,1.0+Math.sqrt((cluster.cells||[]).length)*.09);
+            addWaterSplashFx(state,cluster.x,cluster.y,splashSize);
+            emitCombatEvent(state,'debris_splash',{x:cluster.x,y:cluster.y,cells:(cluster.cells||[]).length});
+          }
+        }
+      }else if(cluster.phase==='float'){
+        const drag=Math.pow(.925,frames),rotDrag=Math.pow(.94,frames);
+        cluster.vx*=drag;cluster.vy*=drag;cluster.angularVelocity*=rotDrag;
+        cluster.x+=cluster.vx*dt;
+        cluster.floatBaseY+=(cluster.vy||0)*dt*.18;
+        cluster.y=cluster.floatBaseY;
+        cluster.rotation+=cluster.angularVelocity*dt;
+        cluster.sinkProgress=0;
+        if(cluster.phaseAge>=cluster.floatTime){
+          cluster.phase='sink';cluster.phaseAge=0;cluster.sinkProgress=0;
+        }
+      }else{
+        cluster.phase='sink';
+        const sinkDur=Math.max(.55,cluster.sinkTime||cluster.life-cluster.airTime-cluster.floatTime);
+        cluster.sinkProgress=Math.min(1,cluster.phaseAge/sinkDur);
+        const drag=Math.pow(.94,frames);
+        cluster.vx*=drag;cluster.angularVelocity*=Math.pow(.96,frames);
+        cluster.x+=cluster.vx*dt;
+        cluster.y+=(16+46*cluster.sinkProgress)*dt;
+        cluster.rotation+=cluster.angularVelocity*dt;
+      }
     }
     state.debrisClusters=state.debrisClusters.filter(c=>c.age<c.life&&c.sinkProgress<1);
   }
