@@ -18,3 +18,4 @@ jobs:
           node tests/v8_4_ballistic_feel.test.js
           node tests/v8_4_feedback_levels.test.js
           node tests/v8_4_debris_water.test.js
+          node tests/v8_4_render_contract.test.js
