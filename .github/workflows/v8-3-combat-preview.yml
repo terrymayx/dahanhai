@@ -1,0 +1,22 @@
+name: V8.3 Combat Preview Regression
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: V8.3 RED GREEN
+        shell: bash
+        run: |
+          status=0
+          node tests/v8_3_target_lock.test.js || status=1
+          node tests/v8_3_salvo.test.js || status=1
+          node tests/v8_3_formation.test.js || status=1
+          node tests/v8_3_render_entry.test.js || status=1
+          exit $status
