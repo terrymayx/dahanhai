@@ -1,0 +1,16 @@
+name: V8.6 Full Regression
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: V8.6 component ratios
+        run: node tests/v8_6_component_ratios.test.js
