@@ -1,0 +1,16 @@
+name: V9.0 Full Regression
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: V9.0 vector geometry
+        run: node tests/v9_0_vector_geometry.test.js
