@@ -117,6 +117,46 @@
     return aliveWeight/ship.totalWeight;
   }
 
+  function mainConnectedKeys(ship){
+    const live=ship&&ship.cells?ship.cells.filter(c=>c.alive):[];
+    const seen=new Set();
+    if(!live.length)return seen;
+    let seeds=live.filter(c=>c.type==='core');
+    if(!seeds.length){
+      const cx=(ship.gridWidth-1)/2,cy=(ship.gridHeight-1)/2;
+      let best=live[0],bestD=Infinity;
+      for(const c of live){
+        const d=(c.gx-cx)*(c.gx-cx)+(c.gy-cy)*(c.gy-cy);
+        if(d<bestD){bestD=d;best=c;}
+      }
+      seeds=[best];
+    }
+    const q=seeds.slice();
+    for(const c of q)seen.add(key(c.gx,c.gy));
+    for(let qi=0;qi<q.length;qi++){
+      const c=q[qi];
+      const ns=[[c.gx-1,c.gy],[c.gx+1,c.gy],[c.gx,c.gy-1],[c.gx,c.gy+1]];
+      for(const n of ns){
+        const k=key(n[0],n[1]);
+        if(seen.has(k))continue;
+        const next=ship.cellMap[k];
+        if(!next||!next.alive)continue;
+        seen.add(k);q.push(next);
+      }
+    }
+    return seen;
+  }
+
+  function detachDisconnected(ship){
+    const keep=mainConnectedKeys(ship),detached=[];
+    if(!ship||!ship.cells)return detached;
+    for(const c of ship.cells){
+      if(!c.alive||keep.has(key(c.gx,c.gy)))continue;
+      c.alive=false;c.hp=0;detached.push(c);
+    }
+    return detached;
+  }
+
   function firstCellAlongSegment(ship,x0,y0,x1,y1){
     if(!ship||ship.state==='gone')return null;
     const a=worldToLocal(ship,x0,y0),b=worldToLocal(ship,x1,y1);
@@ -143,6 +183,6 @@
   root.V8ShipGrid={
     SPECS,CELL_HP,CELL_WEIGHT,createTemplateShip,worldToLocal,localToWorld,
     localToGrid,cellCenterLocal,cellCenterWorld,damageCell,integrity,
-    firstCellAlongSegment,pointHitsLiveCell
+    mainConnectedKeys,detachDisconnected,firstCellAlongSegment,pointHitsLiveCell
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
