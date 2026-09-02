@@ -1,13 +1,13 @@
 const fs=require('fs');
 const assert=require('assert');
 const html=fs.readFileSync('index.html','utf8');
-assert(/V8\.\d+/.test(html),'page title must remain a V8 release');
+assert(/V(?:8\.\d+|9\.0)/.test(html),'page title must identify a V8-derived active release');
 const versions=[];
 for(const f of ['00_v8_base.js','10_ship_grid.js','20_projectiles.js','30_battle.js','40_render.js','50_input_loop.js']){
   const m=html.match(new RegExp(`js/v8/${f.replace('.','\\.')}\\?v=([0-9.]+)`));
   assert(m,`${f} must remain cache-versioned`);versions.push(m[1]);
 }
-assert.strictEqual(new Set(versions).size,1,'all V8 scripts must share one cache version');
-assert(!html.includes('31_v73_proximity_boarding.js'),'V8 entry must not load legacy boarding');
+assert.strictEqual(new Set(versions).size,1,'all V8 core scripts must share one cache version');
+assert(!html.includes('31_v73_proximity_boarding.js'),'active entry must not load legacy boarding');
 assert(fs.existsSync('legacy_v7.html'),'legacy V7 page remains available');
 console.log('V8.2 entry regression tests passed');
