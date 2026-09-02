@@ -78,9 +78,7 @@
         if(!cell.burning)continue;
         cell.fireAge=(cell.fireAge||0)+dt;
         cell.fireDamage=(cell.fireDamage||0)+FIRE_DPS*dt;
-        if(cell.fireDamage<1)returnVoid: {
-          continue;
-        }
+        if(cell.fireDamage<1)continue;
         const tick=Math.floor(cell.fireDamage);
         cell.fireDamage-=tick;
         const res=originalDamageCell(ship,cell,tick);
