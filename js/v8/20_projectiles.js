@@ -5,6 +5,14 @@
 
   const PEN_COST=Grid.MATERIAL_RESISTANCE;
 
+  function computeArcHeight(side,distance,variation){
+    distance=Math.max(0,distance||0);
+    const base=side==='player'
+      ? Math.max(145,Math.min(205,140+distance*.055))
+      : Math.max(90,Math.min(135,85+distance*.035));
+    return Math.max(0,base+(variation||0));
+  }
+
   function estimateFlightTime(state,p){
     const speed=Math.hypot(p.vx,p.vy)||1;
     let target=null,tx=null,ty=null;
@@ -27,7 +35,9 @@
     const side=opts.side||'player';
     const base={x:opts.x,y:opts.y,vx:opts.vx||0,vy:opts.vy||0,side};
     const flightTime=Math.max(.08,opts.flightTime==null?estimateFlightTime(state,base):opts.flightTime);
-    const arcHeight=Math.max(0,opts.arcHeight==null?(side==='player'?170:105):opts.arcHeight);
+    const speed=Math.hypot(base.vx,base.vy)||1;
+    const distance=speed*flightTime;
+    const arcHeight=Math.max(0,opts.arcHeight==null?computeArcHeight(side,distance,opts.arcVariation||0):opts.arcHeight);
     const gravity=arcHeight>0?8*arcHeight/(flightTime*flightTime):0;
     const initialVz=arcHeight>0?4*arcHeight/flightTime:0;
     const p={
@@ -35,8 +45,9 @@
       damage:opts.damage||24,side,life:opts.life||3,
       radius:opts.radius||5,dead:false,
       penetration:opts.penetration==null?(side==='player'?78:0):opts.penetration,
-      hitCells:Object.create(null),
-      z:0,prevZ:0,vz:initialVz,initialVz,gravity,arcHeight,flightTime,arcAge:0
+      hitCells:Object.create(null),didHit:false,splashDone:false,
+      z:0,prevZ:0,vz:initialVz,initialVz,gravity,arcHeight,flightTime,arcAge:0,
+      trail:[],trailT:0
     };
     state.projectiles.push(p);return p;
   }
@@ -55,6 +66,18 @@
     p.vz=p.initialVz-p.gravity*t;
   }
 
+  function updateTrail(p,dt){
+    if(!p.trail)p.trail=[];
+    for(const t of p.trail)t.t=(t.t||0)+dt;
+    p.trail=p.trail.filter(t=>t.t<t.dur);
+    p.trailT=(p.trailT||0)-dt;
+    if(p.trailT<=0){
+      p.trail.push({x:p.x,y:p.y,z:p.z||0,t:0,dur:.28});
+      if(p.trail.length>8)p.trail.splice(0,p.trail.length-8);
+      p.trailT+=.05;
+    }
+  }
+
   function updateAll(state,dt){
     const out=[];
     for(const p of state.projectiles){
@@ -62,6 +85,7 @@
       const x0=p.x,y0=p.y;
       updateArc(p,dt);
       p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
+      updateTrail(p,dt);
       let best=null,bestCell=null,bestD=Infinity;
       for(const ship of targetsFor(state,p)){
         const cell=Grid.firstCellAlongSegment(ship,x0,y0,p.x,p.y);
@@ -73,6 +97,7 @@
         if(d<bestD){best=ship;bestCell=cell;bestD=d;}
       }
       if(best&&bestCell){
+        p.didHit=true;
         const hitPos=Grid.cellCenterWorld(best,bestCell);
         const res=Grid.damageCell(best,bestCell,p.damage);
         const hk=(best.id||best.kind)+':'+bestCell.gx+','+bestCell.gy;
@@ -87,16 +112,21 @@
           const material=bestCell.material||bestCell.type;
           p.penetration-=PEN_COST[material]||28;
           if(p.penetration>0){
-            const speed=Math.hypot(p.vx,p.vy)||1,ux=p.vx/speed,uy=p.vy/speed;
+            const ps=Math.hypot(p.vx,p.vy)||1,ux=p.vx/ps,uy=p.vy/ps;
             p.x=hitPos.x+ux*best.cellSize*.62;
             p.y=hitPos.y+uy*best.cellSize*.62;
           }else p.dead=true;
         }else p.dead=true;
+      }
+      if(!p.dead&&!p.didHit&&!p.splashDone&&p.arcHeight>0&&p.arcAge>=p.flightTime){
+        p.splashDone=true;
+        if(typeof state.onProjectileSplash==='function')state.onProjectileSplash(p,{x:p.x,y:p.y});
+        p.dead=true;
       }
       if(!p.dead&&p.life>0&&p.x>-300&&p.x<2300&&p.y>-300&&p.y<1400)out.push(p);
     }
     state.projectiles=out;
   }
 
-  root.V8Projectile={PEN_COST,spawn,estimateFlightTime,updateArc,updateAll};
+  root.V8Projectile={PEN_COST,computeArcHeight,spawn,estimateFlightTime,updateArc,updateTrail,updateAll};
 })(typeof globalThis!=='undefined'?globalThis:this);
