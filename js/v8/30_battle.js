@@ -178,6 +178,17 @@
     state.enemies.push(e);return e;
   }
 
+  function spawnEnemyPair(state,kind,opts){
+    opts=opts||{};kind=kind||'sloop';
+    const x=opts.x==null?2080:opts.x;
+    const centerY=opts.centerY==null?550:opts.centerY;
+    const gap=opts.gap==null?260:opts.gap;
+    return [
+      spawnEnemy(state,kind,{x,y:centerY-gap/2}),
+      spawnEnemy(state,kind,{x,y:centerY+gap/2})
+    ];
+  }
+
   function activeEnemies(state){return state.enemies.filter(e=>e.state==='active');}
 
   function targetForPlayer(state){
@@ -211,8 +222,9 @@
     if(!target)return;
     const ys=[430,560,690],y=ys[state.shotIndex++%ys.length];
     const x=610,aim=currentAimPoint(state,target);
-    const v=aimVelocity(x,y,aim.x,aim.y,900);
-    P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:24,side:'player',life:3,penetration:78});
+    const speed=900,v=aimVelocity(x,y,aim.x,aim.y,speed);
+    const flightTime=Math.hypot(aim.x-x,aim.y-y)/speed;
+    P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:24,side:'player',life:3,penetration:78,arcHeight:170,flightTime});
     state.fx.push({k:'muzzle',x:x+8,y,t:0,dur:.16});
   }
 
@@ -227,8 +239,9 @@
     const cell=randomAliveCell(state.player);if(!cell)return;
     const target=G.cellCenterWorld(state.player,cell);
     const x=e.x-e.gridWidth*e.cellSize*.45,y=e.y;
-    const v=aimVelocity(x,y,target.x,target.y,620);
-    P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:18,side:'enemy',life:4});
+    const speed=620,v=aimVelocity(x,y,target.x,target.y,speed);
+    const flightTime=Math.hypot(target.x-x,target.y-y)/speed;
+    P.spawn(state,{x,y,vx:v.vx,vy:v.vy,damage:18,side:'enemy',life:4,arcHeight:105,flightTime});
     state.fx.push({k:'muzzle',x,y,t:0,dur:.16});
   }
 
@@ -288,8 +301,8 @@
     state.time+=dt;
 
     state.spawnT-=dt;
-    if(state.spawnT<=0&&activeEnemies(state).length<1){
-      spawnEnemy(state,chooseSpawnKind(state));
+    if(state.spawnT<=0&&activeEnemies(state).length===0){
+      spawnEnemyPair(state,chooseSpawnKind(state));
       state.spawnT=C.ENEMY_SPAWN_INTERVAL*Math.max(.62,1-state.time/160);
     }
 
@@ -326,7 +339,7 @@
   }
 
   root.V8Battle={
-    ENEMY,newGame,spawnEnemy,activeEnemies,targetForPlayer,firePlayer,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint,
+    ENEMY,newGame,spawnEnemy,spawnEnemyPair,activeEnemies,targetForPlayer,firePlayer,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint,
     triggerPowderBlast,applyComponentDestroyed,recomputeShipSystems,createDebrisClusters,updateDebrisClusters
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
