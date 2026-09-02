@@ -2,7 +2,7 @@
   'use strict';
 
   const Grid=root.V8ShipGrid,Vector=root.V9VectorShip;
-  if(!Grid||!Vector||typeof Vector.drawShipLocal!=='function')throw new Error('V9.3 fire rendering requires grid and vector ship');
+  if(!Grid||!Vector||typeof Vector.drawShipLocal!=='function')throw new Error('V9.5 irregular breach rendering requires grid and vector ship');
 
   const originalDrawShipLocal=Vector.drawShipLocal;
 
@@ -74,17 +74,63 @@
     }
   }
 
+  function traceIrregularBreach(ctx,ship,cell,scale){
+    const cs=ship.cellSize||16,p=Grid.cellCenterLocal(ship,cell),s=seed(cell.gx,cell.gy),count=7;
+    const cx=p.x+(rnd(s,1)-.5)*cs*.14,cy=p.y+(rnd(s,2)-.5)*cs*.14;
+    const base=cs*(scale||.72);
+    ctx.beginPath();
+    for(let i=0;i<count;i++){
+      const a=Math.PI*2*i/count+(rnd(s,20+i)-.5)*.18;
+      const r=base*(.68+rnd(s,40+i)*.38);
+      const stretchX=.90+rnd(s,70+i)*.24,stretchY=.82+rnd(s,90+i)*.28;
+      const x=cx+Math.cos(a)*r*stretchX,y=cy+Math.sin(a)*r*stretchY;
+      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    }
+    ctx.closePath();
+  }
+
+  function isBoundaryDeadCell(ship,cell){
+    const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+    for(const [dx,dy] of dirs){
+      const n=ship.cellMap&&ship.cellMap[key(cell.gx+dx,cell.gy+dy)];
+      if(!n||n.alive)return true;
+    }
+    return false;
+  }
+
   function drawDestroyedWater(ctx,ship,state){
     const cs=ship.cellSize||16,t=(state&&Number.isFinite(state.time))?state.time:0;
-    for(const cell of ship.cells||[]){
-      if(cell.alive)continue;
-      const p=Grid.cellCenterLocal(ship,cell),s=seed(cell.gx,cell.gy);
-      ctx.save();ctx.fillStyle='rgba(48,151,194,.96)';
-      ctx.beginPath();ctx.roundRect(p.x-cs*.53,p.y-cs*.53,cs*1.06,cs*1.06,cs*.12);ctx.fill();
-      ctx.strokeStyle='rgba(215,248,255,.32)';ctx.lineWidth=1.2;
-      const wobble=Math.sin(t*2.2+rnd(s,2)*6.28)*cs*.05;
-      ctx.beginPath();ctx.ellipse(p.x+wobble,p.y,cs*.32,cs*.10,0,0,Math.PI*2);ctx.stroke();ctx.restore();
+    const dead=(ship.cells||[]).filter(c=>!c.alive);
+    if(!dead.length)return;
+
+    // First pass: overlapping organic blue cuts. Small cells overlap so a group of
+    // destroyed cells reads as one torn hole instead of a checkerboard of squares.
+    ctx.save();
+    ctx.fillStyle='rgba(43,145,191,.97)';
+    for(const cell of dead){traceIrregularBreach(ctx,ship,cell,.78);ctx.fill();}
+    ctx.restore();
+
+    // Second pass: only boundary dead cells get a charred jagged rim. Interior dead
+    // cells receive no outline, preventing the old honeycomb/grid appearance.
+    ctx.save();
+    ctx.strokeStyle='rgba(48,27,18,.88)';ctx.lineWidth=Math.max(1.1,cs*.16);
+    ctx.lineJoin='round';ctx.lineCap='round';
+    for(const cell of dead){
+      if(!isBoundaryDeadCell(ship,cell))continue;
+      traceIrregularBreach(ctx,ship,cell,.82);ctx.stroke();
     }
+    ctx.restore();
+
+    // Water shimmer is sparse and offset so it never reveals the underlying grid.
+    ctx.save();ctx.strokeStyle='rgba(220,249,255,.34)';ctx.lineWidth=Math.max(.8,cs*.10);
+    let i=0;
+    for(const cell of dead){
+      if((i++%3)!==0)continue;
+      const p=Grid.cellCenterLocal(ship,cell),s=seed(cell.gx,cell.gy);
+      const wobble=Math.sin(t*2.1+rnd(s,5)*6.28)*cs*.08;
+      ctx.beginPath();ctx.ellipse(p.x+wobble,p.y+(rnd(s,6)-.5)*cs*.15,cs*.30,cs*.075,(rnd(s,7)-.5)*.35,0,Math.PI*2);ctx.stroke();
+    }
+    ctx.restore();
   }
 
   Vector.drawShipLocal=function(ctx,ship,state){
@@ -95,5 +141,6 @@
 
   Vector.drawActiveFire=drawBurning;
   Vector.drawDestroyedWater=drawDestroyedWater;
-  root.V8DestroyedCellCleanup={active:true,reason:'V9.3-dead-cells-show-water-active-cells-can-burn'};
+  Vector.traceIrregularBreach=traceIrregularBreach;
+  root.V8DestroyedCellCleanup={active:true,reason:'V9.5-irregular-overlapping-breaches-with-boundary-only-charred-rim'};
 })(typeof globalThis!=='undefined'?globalThis:this);
