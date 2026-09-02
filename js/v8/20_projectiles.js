@@ -109,13 +109,17 @@
         if(ratio<=threshold&&typeof state.onShipCritical==='function')state.onShipCritical(best,ratio,p);
 
         if(p.side==='player'){
-          const material=bestCell.material||bestCell.type;
-          p.penetration-=PEN_COST[material]||28;
-          if(p.penetration>0){
-            const ps=Math.hypot(p.vx,p.vy)||1,ux=p.vx/ps,uy=p.vy/ps;
-            p.x=hitPos.x+ux*best.cellSize*.62;
-            p.y=hitPos.y+uy*best.cellSize*.62;
-          }else p.dead=true;
+          if(!res.destroyed){
+            p.dead=true;
+          }else{
+            const material=bestCell.material||bestCell.type;
+            p.penetration-=PEN_COST[material]||28;
+            if(p.penetration>0){
+              const ps=Math.hypot(p.vx,p.vy)||1,ux=p.vx/ps,uy=p.vy/ps;
+              p.x=hitPos.x+ux*best.cellSize*.62;
+              p.y=hitPos.y+uy*best.cellSize*.62;
+            }else p.dead=true;
+          }
         }else p.dead=true;
       }
       if(!p.dead&&!p.didHit&&!p.splashDone&&p.arcHeight>0&&p.arcAge>=p.flightTime){
