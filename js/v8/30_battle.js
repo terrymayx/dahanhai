@@ -18,6 +18,99 @@
     });
   }
 
+  function recomputeShipSystems(ship){
+    if(!ship||!ship.cells)return ship;
+    const alive=t=>ship.cells.some(c=>c.alive&&c.type===t);
+    ship.rudderAlive=alive('rudder');
+    ship.mastAlive=alive('mast');
+    ship.cannonsAlive=ship.cells.filter(c=>c.alive&&c.type==='cannon').length;
+    if(ship.side==='enemy'){
+      const base=(ENEMY[ship.kind]||ENEMY.sloop).speed;
+      ship.baseSpeed=base;
+      let mult=1;
+      if(!ship.rudderAlive)mult*=.55;
+      if(!ship.mastAlive)mult*=.75;
+      ship.speed=Math.max(base*.3,base*mult);
+    }
+    return ship;
+  }
+
+  function triggerPowderBlast(state,ship,cell,chain){
+    chain=chain||{triggered:new Set()};
+    if(!chain.triggered)chain.triggered=new Set();
+    const id=(ship.id||ship.kind)+':'+cell.gx+','+cell.gy;
+    if(chain.triggered.has(id))return {chain,destroyed:[]};
+    chain.triggered.add(id);
+    const center=G.cellCenterWorld(ship,cell);
+    state.fx.push({k:'powderBlast',x:center.x,y:center.y,t:0,dur:.62,r:96});
+    state.shake=Math.max(state.shake||0,12);
+    state.hitStop=Math.max(state.hitStop||0,.07);
+    addSplinters(state,center.x,center.y,24,1.8);
+
+    const destroyed=[];
+    for(const target of ship.cells){
+      if(!target.alive)continue;
+      const dx=target.gx-cell.gx,dy=target.gy-cell.gy,d=Math.hypot(dx,dy);
+      if(d>2.01)continue;
+      const damage=d<=1.05?38:20;
+      const res=G.damageCell(ship,target,damage);
+      if(res.destroyed){
+        destroyed.push(target);
+        const p=G.cellCenterWorld(ship,target);
+        addSplinters(state,p.x,p.y,4,1.15);
+        if(target.type==='powder'){
+          const nested=triggerPowderBlast(state,ship,target,chain);
+          if(nested&&nested.destroyed)destroyed.push(...nested.destroyed);
+        }
+      }
+    }
+    recomputeShipSystems(ship);
+    return {chain,destroyed};
+  }
+
+  function emitDetachedFeedback(state,ship,pos,detached,lost){
+    if(detached.length){
+      for(const c of detached){
+        const w=G.cellCenterWorld(ship,c);
+        state.fx.push({
+          k:'debris',x:w.x,y:w.y,vx:U.rand(-130,150),vy:U.rand(-160,55),
+          vr:U.rand(-5,5),rot:ship.rotation,t:0,dur:U.rand(.65,1.05),r:ship.cellSize*.78,
+          cellType:c.type,side:ship.side
+        });
+      }
+    }
+    if(detached.length||lost>=8){
+      state.fx.push({k:'structureBreak',x:pos.x,y:pos.y,t:0,dur:.52,r:44+Math.min(90,lost*6)});
+      addSplinters(state,pos.x,pos.y,Math.min(30,12+detached.length*2),1.65);
+      state.shake=Math.max(state.shake||0,9);
+      state.hitStop=Math.max(state.hitStop||0,.07);
+    }else if(lost>=3){
+      state.fx.push({k:'impactBurst',x:pos.x,y:pos.y,t:0,dur:.34,r:30+lost*4});
+      addSplinters(state,pos.x,pos.y,Math.min(20,8+lost*2),1.25);
+      state.shake=Math.max(state.shake||0,4);
+    }
+  }
+
+  function applyComponentDestroyed(state,ship,cell,pos,chain){
+    if(!state||!ship||!cell)return chain||{triggered:new Set()};
+    chain=chain||{triggered:new Set()};
+    if(!chain.triggered)chain.triggered=new Set();
+    let blastDestroyed=[];
+    if(cell.type==='powder'){
+      const blast=triggerPowderBlast(state,ship,cell,chain);
+      blastDestroyed=blast.destroyed||[];
+    }else if(cell.critical||cell.system){
+      recomputeShipSystems(ship);
+    }
+    addSplinters(state,pos.x,pos.y,6,1);
+    const detached=G.detachDisconnected(ship);
+    recomputeShipSystems(ship);
+    const lost=1+blastDestroyed.length+detached.length;
+    emitDetachedFeedback(state,ship,pos,detached,lost);
+    evaluateShip(state,ship);
+    return chain;
+  }
+
   function decorateState(state){
     state.onCellHit=function(ship,cell,pos,res,p){
       state.fx.push({k:'hit',x:pos.x,y:pos.y,t:0,dur:.18,side:p.side});
@@ -25,30 +118,7 @@
       evaluateShip(state,ship);
     };
     state.onCellDestroyed=function(ship,cell,pos){
-      addSplinters(state,pos.x,pos.y,6,1);
-      const detached=G.detachDisconnected(ship);
-      const lost=1+detached.length;
-      if(detached.length){
-        for(const c of detached){
-          const w=G.cellCenterWorld(ship,c);
-          state.fx.push({
-            k:'debris',x:w.x,y:w.y,vx:U.rand(-130,150),vy:U.rand(-160,55),
-            vr:U.rand(-5,5),rot:ship.rotation,t:0,dur:U.rand(.65,1.05),r:ship.cellSize*.78,
-            cellType:c.type,side:ship.side
-          });
-        }
-      }
-      if(detached.length||lost>=8){
-        state.fx.push({k:'structureBreak',x:pos.x,y:pos.y,t:0,dur:.52,r:44+Math.min(90,lost*6)});
-        addSplinters(state,pos.x,pos.y,Math.min(30,12+detached.length*2),1.65);
-        state.shake=Math.max(state.shake,9);
-        state.hitStop=Math.max(state.hitStop,.07);
-      }else if(lost>=3){
-        state.fx.push({k:'impactBurst',x:pos.x,y:pos.y,t:0,dur:.34,r:30+lost*4});
-        addSplinters(state,pos.x,pos.y,Math.min(20,8+lost*2),1.25);
-        state.shake=Math.max(state.shake,4);
-      }
-      evaluateShip(state,ship);
+      applyComponentDestroyed(state,ship,cell,pos,{triggered:new Set()});
     };
     state.onShipCritical=function(ship){evaluateShip(state,ship);};
     return state;
@@ -56,7 +126,7 @@
 
   function newGame(){
     const player=G.createTemplateShip('player','player',C.PLAYER_X,C.PLAYER_Y);
-    player.id='player';player.criticalThreshold=.24;
+    player.id='player';player.criticalThreshold=.24;recomputeShipSystems(player);
     const state={
       state:'playing',time:0,player,enemies:[],projectiles:[],fx:[],texts:[],
       focus:null,aim:null,gold:0,kills:0,wave:1,spawnT:.6,playerFireT:.15,shotIndex:0,nextEnemyId:1,
@@ -69,8 +139,8 @@
     opts=opts||{};kind=kind||'sloop';
     const e=G.createTemplateShip(kind,'enemy',opts.x==null?2080:opts.x,opts.y==null?U.rand(250,850):opts.y);
     const spec=ENEMY[kind]||ENEMY.sloop;
-    e.id='e'+state.nextEnemyId++;e.speed=spec.speed;e.gold=spec.gold;e.criticalThreshold=.34;
-    e.shotT=U.rand(spec.fireMin,spec.fireMax);
+    e.id='e'+state.nextEnemyId++;e.gold=spec.gold;e.criticalThreshold=.34;
+    e.shotT=U.rand(spec.fireMin,spec.fireMax);recomputeShipSystems(e);
     state.enemies.push(e);return e;
   }
 
@@ -119,6 +189,7 @@
   }
 
   function fireEnemy(state,e){
+    if(e&&e.cannonsAlive===0)return;
     const cell=randomAliveCell(state.player);if(!cell)return;
     const target=G.cellCenterWorld(state.player,cell);
     const x=e.x-e.gridWidth*e.cellSize*.45,y=e.y;
@@ -141,7 +212,7 @@
       if(state.focus===ship)state.focus=null;
       if(state.aim&&state.aim.shipId===ship.id)state.aim=null;
       state.fx.push({k:'boom',x:ship.x,y:ship.y,t:0,dur:.75});
-      state.shake=Math.max(state.shake,7);
+      state.shake=Math.max(state.shake||0,7);
     }
     return ratio;
   }
@@ -195,6 +266,7 @@
       if(e.state!=='active')continue;
       if(e.x>920)e.x-=e.speed*dt;
       else e.x=920;
+      if(e.rudderAlive===false)e.rotation+=Math.sin(state.time*3+(e.ph||0))*.0025;
       e.shotT-=dt;
       if(e.x<1450&&e.shotT<=0){
         fireEnemy(state,e);
@@ -219,5 +291,8 @@
     if(state.focus)state.focus.focus=true;
   }
 
-  root.V8Battle={ENEMY,newGame,spawnEnemy,activeEnemies,targetForPlayer,firePlayer,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint};
+  root.V8Battle={
+    ENEMY,newGame,spawnEnemy,activeEnemies,targetForPlayer,firePlayer,fireEnemy,evaluateShip,update,setFocus,setAim,currentAimPoint,
+    triggerPowderBlast,applyComponentDestroyed,recomputeShipSystems
+  };
 })(typeof globalThis!=='undefined'?globalThis:this);
