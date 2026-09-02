@@ -14,3 +14,5 @@ jobs:
           node-version: 22
       - name: V8.6 component ratios
         run: node tests/v8_6_component_ratios.test.js
+      - name: V8.6 progressive systems
+        run: node tests/v8_6_progressive_systems.test.js
