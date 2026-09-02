@@ -105,6 +105,10 @@
       state.onCellDestroyed=function(ship,cell,pos,p){
         const before=(state.debrisClusters||[]).length;
         if(typeof originalDestroyed==='function')originalDestroyed(ship,cell,pos,p);
+        // V8.4.2 deliberately removed all camera shake. Some legacy battle
+        // callbacks still write a shake value internally, so erase it here
+        // immediately rather than waiting for the next tuning/update frame.
+        state.shake=0;
         syncLeaks(ship);
         if((cell.type==='beam'||cell.type==='core')&&(state.debrisClusters||[]).length>before){
           let detached=0;
@@ -129,6 +133,7 @@
       }
       originalUpdate(state,dt);
       if(state){
+        state.shake=0;
         syncLeaks(state.player);
         for(const ship of state.enemies||[])syncLeaks(ship);
       }
