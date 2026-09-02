@@ -15,3 +15,5 @@ jobs:
         run: node tests/v8_2_components.test.js
       - name: V8.2 material penetration
         run: node tests/v8_2_material_penetration.test.js
+      - name: V8.2 powder chain and systems
+        run: node tests/v8_2_powder_chain.test.js
