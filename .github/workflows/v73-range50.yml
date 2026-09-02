@@ -1,0 +1,16 @@
+name: V7.3 Range 50
+on:
+  push:
+    branches: [ main ]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: for f in js/*.js; do node --check "$f"; done
+      - name: Run V7.3 50px regression
+        run: node tests/v7_3_proximity_boarding.test.js
