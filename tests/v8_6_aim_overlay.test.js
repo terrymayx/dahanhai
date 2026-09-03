@@ -3,8 +3,8 @@ const vm=require('vm');
 const assert=require('assert');
 
 const source=fs.readFileSync('js/v8/45_damage_overlay.js','utf8');
-for(const forbidden of ['进水','flooding','ship.leaks','ship.draft'])assert(!source.includes(forbidden),`V8.6 overlay must remain flooding-free: ${forbidden}`);
-for(const token of ['cell.stress','stressRupture','formatAimInfo','resolveAimCell'])assert(source.includes(token),`V8.6 overlay must include ${token}`);
+for(const forbidden of ['ship.leaks','ship.draft'])assert(!source.includes(forbidden),`overlay must not revive obsolete legacy flooding fields: ${forbidden}`);
+for(const token of ['cell.structuralStress','stressRupture','formatAimInfo','resolveAimCell'])assert(source.includes(token),`aim overlay must include ${token}`);
 
 const ctx={console,Math};ctx.globalThis=ctx;
 ctx.V8Config={W:1920,H:1080};
@@ -17,14 +17,14 @@ const R=ctx.V8Render,S=ctx.V8ComponentStress;
 assert.strictEqual(typeof R.resolveAimCell,'function');
 assert.strictEqual(typeof R.formatAimInfo,'function');
 
-const beam={gx:2,gy:1,type:'beam',material:'beam',hp:52,maxHp:96,alive:true};
+const beam={gx:2,gy:1,type:'beam',material:'beam',hp:52,maxHp:96,alive:true,structuralStress:.48};
 const ship={id:'enemy-1',kind:'gunship',side:'enemy',x:900,y:500,rotation:0,gridWidth:5,gridHeight:3,cellSize:16,cells:[beam],cellMap:{'2,1':beam},structureStress:.48,cannonEfficiency:.72,mastEfficiency:.81,rudderEfficiency:.65,powderDanger:1};
 const state={player:null,enemies:[ship],aim:{shipId:'enemy-1',gx:2,gy:1}};
 const resolved=R.resolveAimCell(state);
 assert(resolved&&resolved.ship===ship&&resolved.cell===beam,'aim must resolve the exact current cell');
 let info=R.formatAimInfo(ship,beam);
 assert.strictEqual(info.primary,'主梁 52 / 96 · 受损');
-assert.strictEqual(info.detail,'结构应力 48%');
+assert.strictEqual(info.detail,'局部应力 48%');
 
 const cannon={type:'cannon',hp:30,maxHp:56,alive:true};
 info=R.formatAimInfo(ship,cannon);assert.strictEqual(info.detail,'炮效 72%');
@@ -36,4 +36,4 @@ const powder={type:'powder',hp:10,maxHp:36,alive:true};
 assert.strictEqual(S.componentStage(powder),'critical');
 info=R.formatAimInfo(ship,powder);assert.strictEqual(info.detail,'危险');
 
-console.log('V8.6 aim overlay tests passed');
+console.log('V8.6 aim overlay compatibility tests passed');
