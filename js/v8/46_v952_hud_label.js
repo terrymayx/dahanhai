@@ -13,7 +13,7 @@
     ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.translate(ox,oy);ctx.scale(scale,scale);
     ctx.fillStyle='rgba(5,30,48,.94)';ctx.fillRect(42,37,900,38);
     ctx.font='700 27px "Microsoft YaHei",sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle='#fff';
-    ctx.fillText('V10.3 · 真实舷炮齐射系统',50,55);
+    ctx.fillText('V10.4 · 甲板守卫战',50,55);
     ctx.restore();
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
