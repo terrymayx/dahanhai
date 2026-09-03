@@ -41,9 +41,10 @@
     const arcHeight=Math.max(0,opts.arcHeight==null?computeArcHeight(side,distance,opts.arcVariation||0):Math.min(opts.arcHeight,side==='player'?32:22));
     const gravity=arcHeight>0?8*arcHeight/(flightTime*flightTime):0;
     const initialVz=arcHeight>0?4*arcHeight/flightTime:0;
+    const damage=opts.damage||24;
     const p={
       x:opts.x,y:opts.y,vx:opts.vx||0,vy:opts.vy||0,
-      damage:opts.damage||24,side,life:opts.life||3,
+      damage,attackPower:opts.attackPower==null?damage:opts.attackPower,side,life:opts.life||3,
       radius:opts.radius||5,dead:false,
       // Kept for compatibility, but V9.5.3 no longer lets one cannonball tunnel
       // through multiple physical layers in the same shot.
@@ -131,7 +132,21 @@
         // belongs to that grid cell.
         const hitPos={x:bestHit.worldX,y:bestHit.worldY};
         p.x=hitPos.x;p.y=hitPos.y;
-        const res=Grid.damageCell(best,bestCell,p.damage);
+
+        // V9.8 armor is deliberately resolved only for projectile damage. The
+        // generic Grid.damageCell path stays untouched so fire/stress/flooding
+        // continue to use their original damage values.
+        const Armor=root.V98Armor||null;
+        const attackPower=Math.max(0,Number(p.attackPower)||Number(p.damage)||0);
+        const impact=Armor&&typeof Armor.resolveDirectHit==='function'
+          ?Armor.resolveDirectHit(best,bestCell,attackPower)
+          :{armor:0,ratio:999,grade:'heavy',effectiveDamage:p.damage};
+        p.impactArmor=impact.armor;
+        p.impactRatio=impact.ratio;
+        p.impactGrade=impact.grade;
+        p.effectiveDamage=impact.effectiveDamage;
+
+        const res=Grid.damageCell(best,bestCell,impact.effectiveDamage);
         const hk=(best.id||best.kind)+':'+bestCell.gx+','+bestCell.gy;
         p.hitCells[hk]=true;
         if(typeof state.onCellHit==='function')state.onCellHit(best,bestCell,hitPos,res,p);
@@ -140,9 +155,9 @@
         const threshold=best.side==='player'?.24:.34;
         if(ratio<=threshold&&typeof state.onShipCritical==='function')state.onShipCritical(best,ratio,p);
 
-        // Critical rule: one cannonball = one physical layer. Even when this hit
-        // destroys the front cell, the same projectile cannot continue into the
-        // deck/beam behind it. A later cannonball can pass only after the opening exists.
+        // Critical rule remains unchanged: one cannonball = one physical layer.
+        // Even a heavy penetration stops here. A later shot can enter only if the
+        // front physical cell was genuinely destroyed and left a real opening.
         p.dead=true;
       }
 
