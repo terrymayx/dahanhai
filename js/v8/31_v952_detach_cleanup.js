@@ -10,6 +10,7 @@
   const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
 
   function key(gx,gy){return gx+','+gy;}
+  function markBendingDirty(ship,reason){const M=root.V100Bending||null;if(M&&typeof M.markDirty==='function')M.markDirty(ship,reason);}
   function markDirty(ship){
     if(!ship)return;
     ship.__v96VisualDirty=true;
@@ -27,6 +28,7 @@
     if(changed){
       markDirty(ship);
       ship.__v99TopologyRevision=(ship.__v99TopologyRevision||0)+1;
+      markBendingDirty(ship,'detach');
     }
     return components||[];
   }
@@ -122,6 +124,7 @@
     if(res&&res.destroyed&&ship){
       ship.__v96NeedsStructuralCleanup=true;
       ship.__v99TopologyRevision=(ship.__v99TopologyRevision||0)+1;
+      markBendingDirty(ship,'cell-destroyed');
     }
     return res;
   };
