@@ -2,9 +2,11 @@
   'use strict';
 
   const B=root.V8Battle,P=root.V8Projectile;
-  if(!B||!P||typeof B.newGame!=='function'||typeof P.spawn!=='function')throw new Error('V9.7.2 player attack requires battle and projectile modules');
+  if(!B||!P||typeof B.newGame!=='function'||typeof P.spawn!=='function')throw new Error('V9.7.3 player attack requires battle and projectile modules');
 
-  const BASE_ATTACK=24;
+  const PREVIOUS_ATTACK=24;
+  const ATTACK_MULTIPLIER=3;
+  const BASE_ATTACK=PREVIOUS_ATTACK*ATTACK_MULTIPLIER; // 72
   const MIN_ATTACK=1;
   const MAX_ATTACK=999;
   const originalNewGame=B.newGame;
@@ -42,9 +44,8 @@
     return prepareState(originalNewGame());
   };
 
-  // All player shells read the live attack stat when they are spawned. Existing
-  // firing code can keep its old default damage value; this layer becomes the
-  // single source of truth and makes later upgrades/equipment easy to add.
+  // V9.7.3: player cannon direct-hit damage is tripled from 24 to 72.
+  // All newly spawned player shells read the live attack stat.
   P.spawn=function(state,opts){
     opts=opts||{};
     if(opts.side==='player'){
@@ -55,6 +56,7 @@
   };
 
   root.V972PlayerAttack={
-    BASE_ATTACK,MIN_ATTACK,MAX_ATTACK,prepareState,getAttack,setAttack,addAttack
+    PREVIOUS_ATTACK,ATTACK_MULTIPLIER,BASE_ATTACK,MIN_ATTACK,MAX_ATTACK,
+    prepareState,getAttack,setAttack,addAttack
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
