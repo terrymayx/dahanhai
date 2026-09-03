@@ -13,7 +13,7 @@
     ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.translate(ox,oy);ctx.scale(scale,scale);
     ctx.fillStyle='rgba(5,30,48,.94)';ctx.fillRect(42,37,620,38);
     ctx.font='700 27px "Microsoft YaHei",sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle='#fff';
-    ctx.fillText('V9.7.2 · 我方炮弹攻击力',50,55);
+    ctx.fillText('V9.7.3 · 三倍重炮破坏',50,55);
     ctx.restore();
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
