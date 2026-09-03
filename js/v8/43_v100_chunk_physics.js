@@ -54,6 +54,8 @@
         const chunk=pair.a,ship=pair.b,m=Math.max(.25,chunk.mass||1),bounce=Math.min(55,penetration*1.8+Math.hypot(chunk.vx||0,chunk.vy||0)*.25);
         chunk.vx=(chunk.vx||0)-nx*bounce;chunk.vy=(chunk.vy||0)-ny*bounce;
         if(ship.physics){ship.physics.impulseX=(ship.physics.impulseX||0)+nx*bounce*m*.025;ship.physics.impulseY=(ship.physics.impulseY||0)+ny*bounce*m*.025;}
+        const ChunkDamage=root.V101ChunkDamage||null;
+        if(ChunkDamage&&typeof ChunkDamage.onShipCollision==='function')ChunkDamage.onShipCollision(state,chunk,ship,{nx,ny,penetration,bounce});
       }
       processed++;
     }
