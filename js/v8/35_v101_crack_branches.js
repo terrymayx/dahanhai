@@ -66,8 +66,8 @@
     const gain=clamp(.10+Math.sqrt(power)/45+(grade==='heavy'?.22:grade==='penetrated'?.12:0),.10,.68);
     if(branch){
       branch.strength=clamp((branch.strength||0)+gain*.48,0,1.6);
-      branch.dirX=normalize((branch.dirX||0)*.65+dir.x*.35,(branch.dirY||0)*.65+dir.y*.35).x;
-      branch.dirY=normalize((branch.dirX||0)*.65+dir.x*.35,(branch.dirY||0)*.65+dir.y*.35).y;
+      const merged=normalize((branch.dirX||0)*.65+dir.x*.35,(branch.dirY||0)*.65+dir.y*.35);
+      branch.dirX=merged.x;branch.dirY=merged.y;
       branch.tick=Math.min(branch.tick||0,.04);
       return branch;
     }
