@@ -1,0 +1,10 @@
+const fs=require('fs');
+const assert=require('assert');
+const path='js/v8/35_v101_crack_branches.js';
+assert(fs.existsSync(path),'V10.1 crack branch module should exist');
+const src=fs.readFileSync(path,'utf8');
+assert(src.includes('MAX_ACTIVE_BRANCHES=32'),'branch cap must be 32 per ship');
+assert(src.includes('BRANCH_TICK'),'branch propagation must be tick-limited');
+assert(src.includes('__v101CrackBranches'),'ship must cache active crack branches');
+assert(src.includes('8'),'branch propagation should inspect endpoint neighborhood only');
+console.log('V10.1 crack branch contract passed');
