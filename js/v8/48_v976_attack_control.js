@@ -40,9 +40,10 @@
 #attackPowerControl button:active{transform:translateY(1px);}
 #attackPowerControl button.ap-apply{background:#d88a2a;color:#fff8e8;}
 #attackPowerControl button.ap-auto.active{background:#2c9a68;}
-#attackPowerControl input{width:70px;height:32px;box-sizing:border-box;border:1px solid rgba(255,255,255,.35);border-radius:8px;background:rgba(255,255,255,.96);color:#193247;text-align:center;font-size:16px;font-weight:700;outline:none;}
+#attackPowerControl input[type="number"]{width:68px;height:32px;box-sizing:border-box;border:1px solid rgba(255,255,255,.35);border-radius:8px;background:rgba(255,255,255,.96);color:#193247;text-align:center;font-size:16px;font-weight:700;outline:none;}
+#attackPowerControl input[type="range"]{width:150px;height:28px;accent-color:#f2ac38;cursor:pointer;touch-action:manipulation;}
 #attackPowerControl .ap-range{font-size:11px;opacity:.62;white-space:nowrap;}
-@media (max-width:900px){#attackPowerControl{left:8px;top:118px;gap:4px;padding:5px 6px;transform:scale(.90);transform-origin:left top;}#attackPowerControl .ap-range{display:none;}}
+@media (max-width:900px){#attackPowerControl{left:8px;top:118px;gap:4px;padding:5px 6px;transform:scale(.88);transform-origin:left top;}#attackPowerControl input[type="range"]{width:112px;}#attackPowerControl .ap-range{display:none;}}
 `;
   document.head.appendChild(style);
 
@@ -51,6 +52,7 @@
   panel.innerHTML=`
     <span class="ap-title">炮攻</span>
     <button type="button" data-delta="-10">-10</button>
+    <input id="attackPowerSlider" type="range" min="${MIN}" max="${MAX}" step="1" value="${DEFAULT_ATTACK}" aria-label="炮弹攻击力">
     <input id="attackPowerInput" type="number" min="${MIN}" max="${MAX}" step="1" inputmode="numeric" value="${DEFAULT_ATTACK}">
     <button type="button" data-delta="10">+10</button>
     <button type="button" class="ap-apply">应用</button>
@@ -59,15 +61,22 @@
   `;
   document.body.appendChild(panel);
 
+  const slider=panel.querySelector('#attackPowerSlider');
   const input=panel.querySelector('#attackPowerInput');
   const applyBtn=panel.querySelector('.ap-apply');
   const autoBtn=panel.querySelector('.ap-auto');
 
   function state(){return root.V8||null;}
+  function setDisplayedAttack(value){
+    const attack=Math.max(MIN,Math.min(MAX,Math.round(Number(value)||DEFAULT_ATTACK)));
+    input.value=String(attack);
+    slider.value=String(attack);
+    return attack;
+  }
   function applyManual(value){
     const s=state();if(!s)return;
     const attack=A.setAttack(s,value);
-    input.value=String(attack);
+    setDisplayedAttack(attack);
     autoBtn.classList.remove('active');
     autoBtn.textContent='AUTO';
     savePrefs(s);
@@ -78,7 +87,7 @@
     A.setAuto(s,enabled);
     autoBtn.classList.toggle('active',enabled);
     autoBtn.textContent=enabled?'AUTO✓':'AUTO';
-    input.value=String(A.getAttack(s));
+    setDisplayedAttack(A.getAttack(s));
     savePrefs(s);
   }
   function applyStoredToNewState(s){
@@ -86,7 +95,7 @@
     const savedAttack=readNumber(STORAGE_ATTACK,DEFAULT_ATTACK);
     const savedAuto=readBool(STORAGE_AUTO,false);
     if(savedAuto)A.setAuto(s,true);else A.setAttack(s,savedAttack);
-    input.value=String(A.getAttack(s));
+    setDisplayedAttack(A.getAttack(s));
     autoBtn.classList.toggle('active',A.isAuto(s));
     autoBtn.textContent=A.isAuto(s)?'AUTO✓':'AUTO';
   }
@@ -103,7 +112,18 @@
       applyManual(current+Number(btn.getAttribute('data-delta')||0));
     }
   });
+
+  slider.addEventListener('pointerdown',function(ev){ev.stopPropagation();});
+  slider.addEventListener('input',function(ev){
+    ev.stopPropagation();
+    applyManual(slider.value);
+  });
+
   input.addEventListener('pointerdown',function(ev){ev.stopPropagation();});
+  input.addEventListener('input',function(){
+    const v=Number(input.value);
+    if(Number.isFinite(v))slider.value=String(Math.max(MIN,Math.min(MAX,Math.round(v))));
+  });
   input.addEventListener('keydown',function(ev){
     if(ev.key==='Enter'){ev.preventDefault();applyManual(input.value);input.blur();}
   });
@@ -113,12 +133,13 @@
     const s=state();if(!s)return;
     if(s!==lastState){lastState=s;applyStoredToNewState(s);return;}
     const auto=A.isAuto(s);
-    if(auto){input.value=String(A.getAttack(s));}
+    if(auto)setDisplayedAttack(A.getAttack(s));
+    else slider.value=String(Math.max(MIN,Math.min(MAX,Math.round(Number(input.value)||s.playerShellAttack||DEFAULT_ATTACK))));
     autoBtn.classList.toggle('active',auto);
     autoBtn.textContent=auto?'AUTO✓':'AUTO';
   }
   sync();
   setInterval(sync,180);
 
-  root.V976AttackControl={applyManual,toggleAuto,sync};
+  root.V976AttackControl={applyManual,toggleAuto,setDisplayedAttack,sync};
 })(typeof globalThis!=='undefined'?globalThis:this);
