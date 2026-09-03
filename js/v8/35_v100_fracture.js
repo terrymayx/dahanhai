@@ -54,9 +54,7 @@
     const gradeBoost=grade==='heavy'?.15:grade==='penetrated'?.09:grade==='ricochet'?.018:.045;
     const depthGain=clamp(.018+Math.sqrt(power)/95+gradeBoost,.018,.24);
     cell.crackDepth=clamp(cell.crackDepth+depthGain,0,1);
-    // Wood tends to tear across the impact direction; keep a little of the old direction.
-    const tear=normalize(-dir.y,dir.x);
-    const blend=.68;
+    const tear=normalize(-dir.y,dir.x),blend=.68;
     const mixed=normalize((cell.crackDirX||0)*(1-blend)+tear.x*blend,(cell.crackDirY||0)*(1-blend)+tear.y*blend);
     cell.crackDirX=mixed.x;cell.crackDirY=mixed.y;
     cell.crackRevision++;
@@ -118,6 +116,9 @@
 
   function processShip(ship){
     if(!ship||!ship.__v100CrackQueue||!ship.__v100CrackQueue.length)return [];
+    // V10.1 replaces the broad radius-pool propagation with endpoint-only branches.
+    // Keep seedImpact as the material crack seed, but discard queued V100 spreading once V101 is active.
+    if(root.V101CrackBranches){ship.__v100CrackQueue.length=0;return [];}
     const item=ship.__v100CrackQueue.shift(),cell=ship.cellMap&&ship.cellMap[key(item.gx,item.gy)];
     if(!cell||!cell.alive||cell.detachedGone)return [];
     return propagate(ship,cell,item.options||{});
