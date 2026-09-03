@@ -72,8 +72,8 @@
     const stretchX=.74+rnd(seed,3)*.56,stretchY=.74+rnd(seed,4)*.56;
     const scanRadius=Math.ceil(baseRadius*1.55+2);
     const candidates=localCandidates(ship,impactCell,scanRadius);
-    const Material=root.V99Material||null,Armor=root.V98Armor||null,Structure=root.V99Structure||null,Fracture=root.V100Fracture||null;
-    let structureQueued=0,fractureSeeded=0;
+    const Material=root.V99Material||null,Armor=root.V98Armor||null,Structure=root.V99Structure||null,Fracture=root.V100Fracture||null,Branches=root.V101CrackBranches||null;
+    let structureQueued=0,fractureSeeded=0,branchSeeded=0;
 
     for(const cell of candidates){
       if(!cell.alive||cell.detachedGone||cell===impactCell)continue;
@@ -110,6 +110,10 @@
       if(Fracture&&fractureSeeded<6&&typeof Fracture.seedImpact==='function'&&(cell.type==='hull'||cell.type==='deck'||cell.type==='beam'||cell.type==='core')){
         const radial=Math.hypot(dx,dy)||1;
         Fracture.seedImpact(ship,cell,{vx:dx/radial,vy:dy/radial,power:attackPower*falloff*.55,grade:splash.grade});
+        if(Branches&&branchSeeded<4&&typeof Branches.registerImpact==='function'){
+          Branches.registerImpact(ship,cell,{vx:dx/radial,vy:dy/radial,power:attackPower*falloff*.55,grade:splash.grade});
+          branchSeeded++;
+        }
         fractureSeeded++;
       }
       if(res&&res.destroyed&&state&&typeof state.onCellDestroyed==='function'){
