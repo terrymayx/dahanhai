@@ -7,11 +7,17 @@
     const pose=originalPose(ship,state);
     if(!ship)return pose;
     const flood=Math.max(0,Math.min(1,ship.floodLevel||0));
-    if(flood>0&&ship.state==='active'){
+    const v99=!!root.V99Buoyancy;
+    if((flood>0||v99)&&ship.state==='active'){
       pose.y+=(ship.__v97FloodSinkOffset||0);
       pose.rotation+=(ship.__v97FloodRoll||0);
+      if(v99&&Number.isFinite(ship.__v99Trim)){
+        const trim=ship.__v99Trim;
+        if(ship.kind==='player')pose.y+=trim*18;
+        else pose.x+=trim*18;
+      }
     }
     return pose;
   };
-  root.V97FloodPose={active:true};
+  root.V97FloodPose={active:true,version:'9.9-compatible'};
 })(typeof globalThis!=='undefined'?globalThis:this);
