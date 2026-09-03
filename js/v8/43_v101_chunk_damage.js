@@ -12,6 +12,13 @@
   const MAX_COLLISION_DAMAGE_CELLS=3;
 
   function clamp(v,a,b){return Math.max(a,Math.min(b,Number.isFinite(v)?v:a));}
+  function ammoDamageScale(impact){
+    if(!impact||!impact.ammoType)return 1;
+    const Ammo=root.V102Ammo||null;
+    if(!Ammo||typeof Ammo.profileFor!=='function')return 1;
+    const profile=Ammo.profileFor(impact.ammoType);
+    return profile&&Number.isFinite(profile.chunkDamageScale)?profile.chunkDamageScale:1;
+  }
   function prepareChunk(chunk){
     if(!chunk)return chunk;
     const cells=chunk.cells||[],mass=Math.max(.5,Number(chunk.mass)||cells.reduce((s,c)=>s+(Number(c.weight)||1),0)||1);
@@ -95,7 +102,9 @@
 
   function damageChunk(state,chunk,damage,impact){
     if(!chunk||chunk.phase==='gone')return {destroyed:false,split:false};
-    prepareChunk(chunk);damage=Math.max(0,Number(damage)||0);impact=impact||{};
+    prepareChunk(chunk);impact=impact||{};
+    const baseDamage=Math.max(0,Number(damage)||0),scale=ammoDamageScale(impact);
+    damage=baseDamage*scale;
     const power=Math.max(damage,Number(impact.power)||0),old=chunk.durability;
     chunk.durability=Math.max(0,old-damage);
     chunk.fractureStrength=clamp((chunk.fractureStrength||0)+Math.sqrt(power)/85+damage/Math.max(1,chunk.maxDurability)*.45,0,1.5);
@@ -108,7 +117,7 @@
     let children=[];
     if((chunk.durability<=0||chunk.fractureStrength>=.92)&&(chunk.cells||[]).length>=MIN_SPLIT_CELLS)children=splitChunk(state,chunk);
     else if(chunk.durability<=0){chunk.phase='gone';}
-    return {destroyed:chunk.phase==='gone',split:children.length>0,children,durability:chunk.durability};
+    return {destroyed:chunk.phase==='gone',split:children.length>0,children,durability:chunk.durability,damage,ammoScale:scale};
   }
 
   function shipVelocity(ship){
@@ -156,6 +165,7 @@
       if(res&&res.destroyed){destroyed++;if(Structure&&typeof Structure.queueLocalSolve==='function')Structure.queueLocalSolve(ship,cell);}
     }
     chunk.__v101ShipImpactCooldown=COLLISION_COOLDOWN;
+    // Collision recoil intentionally has no ammoType, so it always remains 1x.
     damageChunk(state,chunk,Math.max(1,baseDamage*.20),{vx:-rvx,vy:-rvy,power:baseDamage});
     if(state.fx){state.fx.push({k:'impactBurst',x:wx,y:wy,t:0,dur:.18,r:10+Math.min(16,baseDamage*.6)});if(state.fx.length>380)state.fx.splice(0,state.fx.length-380);}
     return {damaged,destroyed,damage:baseDamage,relativeSpeed};
@@ -174,5 +184,5 @@
     B.update=function(state,dt){originalUpdate(state,dt);if(state&&dt>0)update(state,dt);};
   }
 
-  root.V101ChunkDamage={MAX_STRUCTURAL_CHUNKS,MIN_SPLIT_CELLS,COLLISION_MIN_SPEED,COLLISION_COOLDOWN,MAX_COLLISION_DAMAGE_CELLS,prepareChunk,hitTestSegment,damageChunk,splitChunk,onShipCollision,recycleChunks,update};
+  root.V101ChunkDamage={MAX_STRUCTURAL_CHUNKS,MIN_SPLIT_CELLS,COLLISION_MIN_SPEED,COLLISION_COOLDOWN,MAX_COLLISION_DAMAGE_CELLS,prepareChunk,hitTestSegment,ammoDamageScale,damageChunk,splitChunk,onShipCollision,recycleChunks,update};
 })(typeof globalThis!=='undefined'?globalThis:this);
