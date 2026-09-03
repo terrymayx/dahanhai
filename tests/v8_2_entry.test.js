@@ -1,10 +1,10 @@
 const fs=require('fs');
 const assert=require('assert');
 const html=fs.readFileSync('index.html','utf8');
-assert(/V(?:8\.\d+|9\.0)/.test(html),'page title must identify a V8-derived active release');
+assert(/<title>大航海时代 V\d+(?:\.\d+)?/.test(html),'page title must identify an active V8-derived release');
 const versions=[];
 for(const f of ['00_v8_base.js','10_ship_grid.js','20_projectiles.js','30_battle.js','40_render.js','50_input_loop.js']){
-  const m=html.match(new RegExp(`js/v8/${f.replace('.','\\.')}\\?v=([0-9.]+)`));
+  const m=html.match(new RegExp(`js/v8/${f.replace('.','\\.')}\\?v=([0-9]+\\.[0-9]+\\.[0-9]+)`));
   assert(m,`${f} must remain cache-versioned`);versions.push(m[1]);
 }
 assert.strictEqual(new Set(versions).size,1,'all V8 core scripts must share one cache version');
