@@ -39,9 +39,7 @@
         const p=typeof G.cellCenterLocal==='function'?G.cellCenterLocal(ship,cell):{x:(cell.gx+.5-ship.gridWidth/2)*(ship.cellSize||8),y:(cell.gy+.5-ship.gridHeight/2)*(ship.cellSize||8)};
         comp.capacityWeight+=w;comp.centerLocal.x+=p.x*w;comp.centerLocal.y+=p.y*w;
       }
-      for(const comp of comps){
-        const w=Math.max(.001,comp.capacityWeight);comp.centerLocal.x/=w;comp.centerLocal.y/=w;
-      }
+      for(const comp of comps){const w=Math.max(.001,comp.capacityWeight);comp.centerLocal.x/=w;comp.centerLocal.y/=w;}
       ship.__v99Compartments=comps;
       ship.__v99TransferLinks=[];
       ship.__v99CompartmentRevision=-1;
@@ -50,6 +48,14 @@
     if(!Number.isFinite(ship.floodLevel))ship.floodLevel=0;
     if(!Number.isFinite(ship.leakRate))ship.leakRate=0;
     return ship;
+  }
+
+  function directExteriorOpening(ship,cell){
+    if(!ship||!cell||cell.alive||cell.detachedGone)return false;
+    for(const [dx,dy] of DIRS){
+      if(!(ship.cellMap&&ship.cellMap[key(cell.gx+dx,cell.gy+dy)]))return true;
+    }
+    return false;
   }
 
   function isOpenWaterBreach(ship,start){
@@ -90,14 +96,16 @@
     const topology=Number(ship.__v99TopologyRevision)||0;
     if(ship.__v99LastTopologyRevision===topology&&ship.__v99CompartmentRevision===topology)return ship.__v99OpenBreaches;
 
-    // Topology changes only when a cell truly reaches zero HP, so this full pass
-    // is event-driven rather than per-frame. It also catches fire damage paths
-    // that may bypass the outer V9.9 damage wrapper.
+    // Internal dead cells may become connected water pathways, but only a dead
+    // physical cell that directly touches the original exterior envelope counts
+    // as a pressure-bearing seawater breach. This prevents one exterior hole from
+    // multiplying leak weight for every destroyed beam behind it.
     const open=[];
     for(const c of ship.cells||[]){
       if(c.alive||c.detachedGone||!ELIGIBLE.has(c.type))continue;
       c.__v99OpenWater=isOpenWaterBreach(ship,c);
-      if(c.__v99OpenWater)open.push(c);
+      c.__v99DirectExterior=directExteriorOpening(ship,c);
+      if(c.__v99OpenWater&&c.__v99DirectExterior)open.push(c);
     }
     ship.__v99OpenBreaches=open;
     for(const comp of ship.__v99Compartments){comp.breachWeight=0;comp.breachCount=0;comp.breachCenterLocal={x:0,y:0};}
@@ -108,9 +116,7 @@
       comp.breachWeight+=w;comp.breachCount++;
       comp.breachCenterLocal.x+=p.x*w;comp.breachCenterLocal.y+=p.y*w;
     }
-    for(const comp of ship.__v99Compartments){
-      if(comp.breachWeight>0){comp.breachCenterLocal.x/=comp.breachWeight;comp.breachCenterLocal.y/=comp.breachWeight;}
-    }
+    for(const comp of ship.__v99Compartments){if(comp.breachWeight>0){comp.breachCenterLocal.x/=comp.breachWeight;comp.breachCenterLocal.y/=comp.breachWeight;}}
     buildTransferLinks(ship);
     ship.__v99LastTopologyRevision=topology;
     ship.__v99CompartmentRevision=topology;
@@ -174,5 +180,5 @@
     if(originalUpdate)B.update=function(state,dt){originalUpdate(state,dt);if(!state||!(dt>0))return;updateShip(state,state.player,dt);for(const s of state.enemies||[])updateShip(state,s,dt);};
   }
 
-  root.V99Compartments={COMPARTMENT_COUNT,BREACH_WEIGHT,MAX_OPEN_SEARCH,BASE_LEAK,TRANSFER_RATE,prepareShip,compartmentIndex,isOpenWaterBreach,refreshBreaches,buildTransferLinks,updateShip};
+  root.V99Compartments={COMPARTMENT_COUNT,BREACH_WEIGHT,MAX_OPEN_SEARCH,BASE_LEAK,TRANSFER_RATE,prepareShip,compartmentIndex,directExteriorOpening,isOpenWaterBreach,refreshBreaches,buildTransferLinks,updateShip};
 })(typeof globalThis!=='undefined'?globalThis:this);
