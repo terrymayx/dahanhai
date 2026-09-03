@@ -5,6 +5,17 @@
 
   const PEN_COST=Grid.MATERIAL_RESISTANCE;
 
+  function ammoTypeFor(type,side){
+    const Ammo=root.V102Ammo||null;
+    if(Ammo&&typeof Ammo.normalizeType==='function')return Ammo.normalizeType(type||(side==='player'?'solid':'standard'));
+    if(type==='solid'||type==='chain'||type==='explosive'||type==='standard')return type;
+    return side==='player'?'solid':'standard';
+  }
+  function directAmmoScale(p,cell){
+    const Ammo=root.V102Ammo||null;
+    return Ammo&&typeof Ammo.directDamageScale==='function'?Ammo.directDamageScale(p&&p.ammoType,cell&&cell.type):1;
+  }
+
   function computeArcHeight(side,distance,variation){
     distance=Math.max(0,distance||0);
     const base=side==='player'?Math.max(12,Math.min(28,10+distance*.012)):Math.max(8,Math.min(20,7+distance*.009));
@@ -22,11 +33,13 @@
   }
 
   function spawn(state,opts){
+    opts=opts||{};
     const side=opts.side||'player',base={x:opts.x,y:opts.y,vx:opts.vx||0,vy:opts.vy||0,side};
     const flightTime=Math.max(.08,opts.flightTime==null?estimateFlightTime(state,base):opts.flightTime),speed=Math.hypot(base.vx,base.vy)||1,distance=speed*flightTime;
     const arcHeight=Math.max(0,opts.arcHeight==null?computeArcHeight(side,distance,opts.arcVariation||0):Math.min(opts.arcHeight,side==='player'?32:22));
     const gravity=arcHeight>0?8*arcHeight/(flightTime*flightTime):0,initialVz=arcHeight>0?4*arcHeight/flightTime:0,damage=opts.damage||24;
-    const p={x:opts.x,y:opts.y,vx:opts.vx||0,vy:opts.vy||0,damage,attackPower:opts.attackPower==null?damage:opts.attackPower,side,life:opts.life||3,radius:opts.radius||5,dead:false,penetration:opts.penetration==null?(side==='player'?78:0):opts.penetration,hitCells:Object.create(null),didHit:false,splashDone:false,z:0,prevZ:0,vz:initialVz,initialVz,gravity,arcHeight,flightTime,arcAge:0,trail:[],trailT:0};
+    const ammoType=ammoTypeFor(opts.ammoType,side);
+    const p={x:opts.x,y:opts.y,vx:opts.vx||0,vy:opts.vy||0,damage,attackPower:opts.attackPower==null?damage:opts.attackPower,ammoType,side,life:opts.life||3,radius:opts.radius||5,dead:false,penetration:opts.penetration==null?(side==='player'?78:0):opts.penetration,hitCells:Object.create(null),didHit:false,splashDone:false,z:0,prevZ:0,vz:initialVz,initialVz,gravity,arcHeight,flightTime,arcAge:0,trail:[],trailT:0};
     state.projectiles.push(p);return p;
   }
 
@@ -51,7 +64,7 @@
     const hit=ChunkDamage.hitTestSegment(state,x0,y0,p.x,p.y);if(!hit)return false;
     p.x=hit.x;p.y=hit.y;p.didHit=true;
     const damage=Math.max(1,Number(p.damage)||Number(p.attackPower)||24),power=Math.max(damage,Number(p.attackPower)||0);
-    if(typeof ChunkDamage.damageChunk==='function')ChunkDamage.damageChunk(state,hit.chunk,damage,{vx:p.vx,vy:p.vy,power,side:p.side});
+    if(typeof ChunkDamage.damageChunk==='function')ChunkDamage.damageChunk(state,hit.chunk,damage,{vx:p.vx,vy:p.vy,power,side:p.side,ammoType:p.ammoType});
     if(state.fx){state.fx.push({k:'impactBurst',x:hit.x,y:hit.y,t:0,dur:.30,r:26+Math.min(28,power*.12)});for(let i=0;i<5;i++)state.fx.push({k:'splinter',x:hit.x,y:hit.y,vx:(Math.random()-.5)*190,vy:-35-Math.random()*95,t:0,dur:.35+Math.random()*.28,r:2+Math.random()*3,rot:Math.random()*Math.PI*2,vr:(Math.random()-.5)*8});if(state.fx.length>380)state.fx.splice(0,state.fx.length-380);}
     p.dead=true;return true;
   }
@@ -67,14 +80,16 @@
         const best=bestHit.ship,bestCell=bestHit.cell;p.didHit=true;const hitPos={x:bestHit.worldX,y:bestHit.worldY};p.x=hitPos.x;p.y=hitPos.y;
         const Material=root.V99Material||null,Armor=root.V98Armor||null,attackPower=Math.max(0,Number(p.attackPower)||Number(p.damage)||0);let impact;
         if(Material&&typeof Material.resolveDirect==='function'){impact=Material.resolveDirect(best,bestCell,p);Material.applyImpactState(best,bestCell,impact);}else impact=Armor&&typeof Armor.resolveDirectHit==='function'?Armor.resolveDirectHit(best,bestCell,attackPower):{armor:0,ratio:999,grade:'heavy',effectiveDamage:p.damage};
-        p.impactArmor=Number(impact.effectiveArmor)||Number(impact.armor)||0;p.impactArmorBase=Number(impact.armorMax)||Number(impact.armor)||0;p.impactRatio=impact.ratio;p.impactGrade=impact.grade;p.impactCos=impact.impactCos;p.impactAngle=impact.impactAngle;p.effectiveDamage=impact.effectiveDamage;
-        const directDamage=impact.ricochet?Math.max(.1,impact.effectiveDamage*.25):impact.effectiveDamage,res=Grid.damageCell(best,bestCell,directDamage),hk=(best.id||best.kind)+':'+bestCell.gx+','+bestCell.gy;p.hitCells[hk]=true;
+        p.impactArmor=Number(impact.effectiveArmor)||Number(impact.armor)||0;p.impactArmorBase=Number(impact.armorMax)||Number(impact.armor)||0;p.impactRatio=impact.ratio;p.impactGrade=impact.grade;p.impactCos=impact.impactCos;p.impactAngle=impact.impactAngle;
+        const ammoScale=directAmmoScale(p,bestCell),scaledDamage=Math.max(.1,(Number(impact.effectiveDamage)||Number(p.damage)||0)*ammoScale);
+        const directDamage=impact.ricochet?Math.max(.1,scaledDamage*.25):scaledDamage;p.effectiveDamage=directDamage;
+        const res=Grid.damageCell(best,bestCell,directDamage),hk=(best.id||best.kind)+':'+bestCell.gx+','+bestCell.gy;p.hitCells[hk]=true;
         if(typeof state.onCellHit==='function')state.onCellHit(best,bestCell,hitPos,res,p);if(res.destroyed&&typeof state.onCellDestroyed==='function')state.onCellDestroyed(best,bestCell,hitPos,p);
         const Structure=root.V99Structure||null;if(Structure&&typeof Structure.queueLocalSolve==='function')Structure.queueLocalSolve(best,bestCell);
         const Fracture=root.V100Fracture||null;if(Fracture&&typeof Fracture.seedImpact==='function')Fracture.seedImpact(best,bestCell,{vx:p.vx,vy:p.vy,power:p.attackPower||p.damage,grade:p.impactGrade});
         const Branches=root.V101CrackBranches||null;if(Branches&&typeof Branches.registerImpact==='function')Branches.registerImpact(best,bestCell,{vx:p.vx,vy:p.vy,power:p.attackPower||p.damage,grade:p.impactGrade});
         const ratio=Grid.integrity(best),threshold=best.side==='player'?.24:.34;if(ratio<=threshold&&typeof state.onShipCritical==='function')state.onShipCritical(best,ratio,p);
-        if(impact.ricochet)reflectProjectile(p,impact.normal);else p.dead=true; // one cannonball = one foremost live layer
+        if(impact.ricochet)reflectProjectile(p,impact.normal);else p.dead=true; // one cannonball = one foremost live layer, including all V10.2 ammo types
       }else{
         // Only open-water trajectory can reach detached structural chunks.
         hitStructuralChunk(state,p,x0,y0);
@@ -86,5 +101,5 @@
     state.projectiles=out;
   }
 
-  root.V8Projectile={PEN_COST,computeArcHeight,spawn,estimateFlightTime,updateArc,updateTrail,firstPhysicalHit,reflectProjectile,hitStructuralChunk,updateAll};
+  root.V8Projectile={PEN_COST,computeArcHeight,spawn,estimateFlightTime,updateArc,updateTrail,firstPhysicalHit,reflectProjectile,hitStructuralChunk,updateAll,ammoTypeFor,directAmmoScale};
 })(typeof globalThis!=='undefined'?globalThis:this);
