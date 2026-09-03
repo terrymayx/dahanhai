@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('fs');
+const assert=require('assert');
+const path='js/v8/42_v98_heavy_feedback.js';
+assert.ok(fs.existsSync(path),'V9.8 heavy feedback module should exist');
+const src=fs.readFileSync(path,'utf8');
+assert.ok(src.includes('onImpact'),'heavy feedback should expose onImpact');
+assert.ok(src.includes('__v98ImpactKick'),'heavy feedback should create short ship kick state');
+assert.ok(src.includes('shipVisualPose'),'heavy feedback should feed the visual ship pose');
+assert.ok(src.includes('impactBurst'),'heavy penetration should add a centered impact flash/burst');
+assert.ok(src.includes('structureRupture'),'beam/core heavy hits should add structure rupture feedback');
+assert.ok(src.includes('MAX_EXTRA_FX'),'heavy feedback must have a hard FX cap');
+console.log('V9.8 heavy feedback regression passed');
