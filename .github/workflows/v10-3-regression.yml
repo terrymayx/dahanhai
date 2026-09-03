@@ -33,6 +33,8 @@ jobs:
           set -e
           for f in \
             js/v8/35_v103_broadside.js \
+            js/v8/36_v103_battle_bridge.js \
+            js/v8/42_v103_muzzle_smoke.js \
             js/v8/49_v103_broadside_control.js \
             js/v8/30_battle.js \
             js/v8/41_render_v9.js \
