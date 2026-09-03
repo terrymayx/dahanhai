@@ -19,6 +19,10 @@ target=ship(20);state=stateWith(target);
 P.spawn(state,{x:45,y:100,vx:600,vy:0,damage:24,side:'player',life:2,penetration:78,arcHeight:0,flightTime:.2});
 P.updateAll(state,.1);
 assert.strictEqual(target.cells[0].alive,false,'low-HP hull must be breached');
-assert.strictEqual(state.projectiles.length,1,'breaching hit with penetration remaining must continue through the opening');
-assert(state.projectiles[0].penetration<78,'breach must consume material penetration cost');
-console.log('V8.5 penetration gate tests passed');
+assert.strictEqual(state.projectiles.length,0,'the shell that creates a breach must still stop at the first physical layer');
+
+// A later shell may travel through an already-open gap because the front physical cell is gone.
+P.spawn(state,{x:45,y:100,vx:600,vy:0,damage:24,side:'player',life:2,penetration:78,arcHeight:0,flightTime:.2});
+P.updateAll(state,.1);
+assert.strictEqual(state.projectiles.length,1,'a later shell may continue through a previously opened gap');
+console.log('V8.5 one-shell-one-layer penetration gate tests passed');
