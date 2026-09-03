@@ -28,8 +28,17 @@
     return components||[];
   }
 
+  function classifyV99(ship,components){
+    const S=root.V99Structure||null;
+    if(!S||typeof S.classifyDetached!=='function')return{large:[],small:components||[]};
+    try{return S.classifyDetached(ship,components||[]);}catch(e){return{large:[],small:components||[]};}
+  }
+
   G.detachDisconnectedComponents=function(ship){
-    return markDetached(originalDetach(ship),ship);
+    const components=originalDetach(ship);
+    const classified=classifyV99(ship,components);
+    markDetached(components,ship);
+    return classified.small;
   };
 
   function liveCells(ship){return (ship&&ship.cells||[]).filter(c=>c.alive&&!c.detachedGone);}
@@ -90,7 +99,10 @@
         const detachedSide=sideAKeys.has(anchorKey)?componentWithoutBridge(ship,b,a,b):sideA;
         const total=cells.length;
         if(detachedSide.length<3||detachedSide.length>Math.max(4,Math.floor(total*.48)))continue;
-        markDetached([detachedSide],ship);collapsed.push(detachedSide);removed=true;break;
+        const classified=classifyV99(ship,[detachedSide]);
+        markDetached([detachedSide],ship);
+        if(!classified.large.length)collapsed.push(detachedSide);
+        removed=true;break;
       }
       if(!removed)break;
     }
@@ -101,8 +113,6 @@
     const out=[];out.push(...G.detachDisconnectedComponents(ship));out.push(...collapseWeakNecks(ship));return out;
   }
 
-  // Every real hit invalidates cached visuals. Expensive graph cleanup is queued
-  // only when a cell actually reaches zero HP, never scanned continuously.
   G.damageCell=function(ship,cell,damage){
     const res=originalDamageCell(ship,cell,damage);
     if(res&&res.hit)markDirty(ship);
@@ -121,5 +131,5 @@
     }
   };
 
-  root.V952DetachCleanup={cleanupShip,markDetached,collapseWeakNecks,findBridges,markDirty};
+  root.V952DetachCleanup={cleanupShip,markDetached,collapseWeakNecks,findBridges,markDirty,classifyV99};
 })(typeof globalThis!=='undefined'?globalThis:this);
