@@ -1,11 +1,12 @@
 const fs=require('fs'),assert=require('assert');
-const path='js/v8/35_v103_broadside.js';assert(fs.existsSync(path),'V10.3 broadside module must exist');
-const src=fs.readFileSync(path,'utf8'),battle=fs.readFileSync('js/v8/30_battle.js','utf8');
+const path='js/v8/35_v103_broadside.js',bridgePath='js/v8/36_v103_battle_bridge.js';
+assert(fs.existsSync(path),'V10.3 broadside module must exist');assert(fs.existsSync(bridgePath),'V10.3 battle bridge must exist');
+const src=fs.readFileSync(path,'utf8'),bridge=fs.readFileSync(bridgePath,'utf8'),battle=fs.readFileSync('js/v8/30_battle.js','utf8');
 for(const token of ['startPlayerBroadside','updatePlayerSalvo','SALVO_GAP=.085','gunIds','muzzleLocal','localToWorld'])assert(src.includes(token),`missing ${token}`);
 assert(src.includes("P.spawn(state,{x:muzzle.x,y:muzzle.y")||src.includes('P.spawn(state,{x:muzzle.x,y:muzzle.y'),'player shots must spawn at real muzzle world coordinates');
 assert(!src.includes('x=610'),'V10.3 module must not use legacy fixed player x=610 firing origin');
-assert(battle.includes('root.V103Broadside'),'battle must delegate to V103Broadside at runtime');
-assert(battle.includes('SALVO_COUNT=4'),'legacy four-shot fallback must remain for historical standalone tests');
+for(const token of ['V103Broadside','oldUpdate','startPlayerBroadside','updatePlayerSalvo','__v103PlayerFireT'])assert(bridge.includes(token),`battle bridge missing ${token}`);
+assert(battle.includes('SALVO_COUNT=4'),'legacy four-shot fallback must remain untouched for historical standalone tests');
 assert(src.includes('gun.cell.alive'),'queued gun must be re-checked before firing');
 assert(src.includes('gun.reload=gun.reloadMax'),'fired gun must enter independent reload');
 console.log('V10.3 player salvo contract passed');
