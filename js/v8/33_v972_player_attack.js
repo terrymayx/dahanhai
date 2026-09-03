@@ -21,6 +21,11 @@
   function clampAutoAttack(v){
     return Math.max(AUTO_MIN_ATTACK,Math.min(AUTO_MAX_ATTACK,clampAttack(v)));
   }
+  function normalizePlayerAmmo(type){
+    const Ammo=root.V102Ammo||null;
+    if(Ammo&&typeof Ammo.normalizePlayerType==='function')return Ammo.normalizePlayerType(type);
+    return type==='chain'||type==='explosive'||type==='solid'?type:'solid';
+  }
 
   function prepareState(state){
     if(!state)return state;
@@ -28,6 +33,7 @@
     if(typeof state.playerAttackAuto!=='boolean')state.playerAttackAuto=false;
     if(!Number.isFinite(state.playerShellAttack))state.playerShellAttack=BASE_ATTACK;
     state.playerShellAttack=clampAttack(state.playerShellAttack);
+    state.playerAmmoType=normalizePlayerAmmo(state.playerAmmoType);
     return state;
   }
 
@@ -95,22 +101,25 @@
     const state=prepareState(originalNewGame());
     state.playerAttackAuto=false;
     state.playerShellAttack=BASE_ATTACK;
+    state.playerAmmoType='solid';
     return state;
   };
 
   // Direct damage and V9.7.4 blast radius both read the same live stat.
+  // V10.2 keeps the same 24-240 attack stat and only locks the selected ammo type into newly spawned player shells.
   P.spawn=function(state,opts){
     opts=opts||{};
     if(opts.side==='player'){
       const target=resolveTarget(state);
       const attack=getAttack(state,target);
-      opts=Object.assign({},opts,{damage:attack,attackPower:attack,autoAttack:!!(state&&state.playerAttackAuto)});
+      const ammoType=normalizePlayerAmmo(state&&state.playerAmmoType);
+      opts=Object.assign({},opts,{damage:attack,attackPower:attack,ammoType,autoAttack:!!(state&&state.playerAttackAuto)});
     }
     return originalSpawn(state,opts);
   };
 
   root.V972PlayerAttack={
     BASE_ATTACK,MIN_ATTACK,MAX_ATTACK,AUTO_MIN_ATTACK,AUTO_MAX_ATTACK,SHIP_SCALE,
-    prepareState,resolveTarget,computeAutoAttack,getAttack,setAttack,addAttack,setAuto,isAuto,clampAttack
+    prepareState,resolveTarget,computeAutoAttack,getAttack,setAttack,addAttack,setAuto,isAuto,clampAttack,normalizePlayerAmmo
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
