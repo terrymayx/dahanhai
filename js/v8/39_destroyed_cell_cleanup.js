@@ -2,7 +2,7 @@
   'use strict';
 
   const Grid=root.V8ShipGrid,Vector=root.V9VectorShip;
-  if(!Grid||!Vector||typeof Vector.drawShipLocal!=='function')throw new Error('V9.5 irregular breach rendering requires grid and vector ship');
+  if(!Grid||!Vector||typeof Vector.drawShipLocal!=='function')throw new Error('V9.5.1 irregular breach rendering requires grid and vector ship');
 
   const originalDrawShipLocal=Vector.drawShipLocal;
 
@@ -89,13 +89,40 @@
     ctx.closePath();
   }
 
-  function isBoundaryDeadCell(ship,cell){
-    const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
-    for(const [dx,dy] of dirs){
-      const n=ship.cellMap&&ship.cellMap[key(cell.gx+dx,cell.gy+dy)];
-      if(!n||n.alive)return true;
+  function drawExposedCharredEdges(ctx,ship,dead){
+    const cs=ship.cellSize||16;
+    const map=ship.cellMap||Object.create(null);
+    ctx.save();
+    ctx.strokeStyle='rgba(46,25,17,.80)';
+    ctx.lineWidth=Math.max(1.0,cs*.14);
+    ctx.lineCap='round';ctx.lineJoin='round';
+
+    for(const cell of dead){
+      const p=Grid.cellCenterLocal(ship,cell),s=seed(cell.gx,cell.gy),h=cs*.50;
+      const edges=[
+        {dx:-1,dy:0,x1:p.x-h,y1:p.y-h,x2:p.x-h,y2:p.y+h},
+        {dx: 1,dy:0,x1:p.x+h,y1:p.y-h,x2:p.x+h,y2:p.y+h},
+        {dx:0,dy:-1,x1:p.x-h,y1:p.y-h,x2:p.x+h,y2:p.y-h},
+        {dx:0,dy: 1,x1:p.x-h,y1:p.y+h,x2:p.x+h,y2:p.y+h}
+      ];
+      for(let ei=0;ei<edges.length;ei++){
+        const e=edges[ei],n=map[key(cell.gx+e.dx,cell.gy+e.dy)];
+        // Draw only where destroyed water meets surviving ship material.
+        // Missing neighbor means outside the ship silhouette, so no internal rim is needed.
+        if(!n||!n.alive)continue;
+        const j1=(rnd(s,120+ei)-.5)*cs*.18,j2=(rnd(s,140+ei)-.5)*cs*.18;
+        ctx.beginPath();
+        if(e.dx){
+          ctx.moveTo(e.x1+j1,e.y1+cs*.08);
+          ctx.lineTo(e.x2+j2,e.y2-cs*.08);
+        }else{
+          ctx.moveTo(e.x1+cs*.08,e.y1+j1);
+          ctx.lineTo(e.x2-cs*.08,e.y2+j2);
+        }
+        ctx.stroke();
+      }
     }
-    return false;
+    ctx.restore();
   }
 
   function drawDestroyedWater(ctx,ship,state){
@@ -103,32 +130,24 @@
     const dead=(ship.cells||[]).filter(c=>!c.alive);
     if(!dead.length)return;
 
-    // First pass: overlapping organic blue cuts. Small cells overlap so a group of
-    // destroyed cells reads as one torn hole instead of a checkerboard of squares.
+    // Water fill only. No per-cell closed outline at all.
+    // Strong overlap hides the logical fine grid and makes adjacent cells merge visually.
     ctx.save();
-    ctx.fillStyle='rgba(43,145,191,.97)';
-    for(const cell of dead){traceIrregularBreach(ctx,ship,cell,.78);ctx.fill();}
+    ctx.fillStyle='rgba(43,145,191,.98)';
+    for(const cell of dead){traceIrregularBreach(ctx,ship,cell,.90);ctx.fill();}
     ctx.restore();
 
-    // Second pass: only boundary dead cells get a charred jagged rim. Interior dead
-    // cells receive no outline, preventing the old honeycomb/grid appearance.
-    ctx.save();
-    ctx.strokeStyle='rgba(48,27,18,.88)';ctx.lineWidth=Math.max(1.1,cs*.16);
-    ctx.lineJoin='round';ctx.lineCap='round';
-    for(const cell of dead){
-      if(!isBoundaryDeadCell(ship,cell))continue;
-      traceIrregularBreach(ctx,ship,cell,.82);ctx.stroke();
-    }
-    ctx.restore();
+    // Charred wood appears only on live/dead contact edges, never around each dead cell.
+    drawExposedCharredEdges(ctx,ship,dead);
 
-    // Water shimmer is sparse and offset so it never reveals the underlying grid.
-    ctx.save();ctx.strokeStyle='rgba(220,249,255,.34)';ctx.lineWidth=Math.max(.8,cs*.10);
+    // Sparse shimmer inside water, intentionally not one mark per cell.
+    ctx.save();ctx.strokeStyle='rgba(220,249,255,.28)';ctx.lineWidth=Math.max(.75,cs*.085);
     let i=0;
     for(const cell of dead){
-      if((i++%3)!==0)continue;
+      if((i++%5)!==0)continue;
       const p=Grid.cellCenterLocal(ship,cell),s=seed(cell.gx,cell.gy);
       const wobble=Math.sin(t*2.1+rnd(s,5)*6.28)*cs*.08;
-      ctx.beginPath();ctx.ellipse(p.x+wobble,p.y+(rnd(s,6)-.5)*cs*.15,cs*.30,cs*.075,(rnd(s,7)-.5)*.35,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.ellipse(p.x+wobble,p.y+(rnd(s,6)-.5)*cs*.16,cs*.28,cs*.065,(rnd(s,7)-.5)*.35,0,Math.PI*2);ctx.stroke();
     }
     ctx.restore();
   }
@@ -142,5 +161,5 @@
   Vector.drawActiveFire=drawBurning;
   Vector.drawDestroyedWater=drawDestroyedWater;
   Vector.traceIrregularBreach=traceIrregularBreach;
-  root.V8DestroyedCellCleanup={active:true,reason:'V9.5-irregular-overlapping-breaches-with-boundary-only-charred-rim'};
+  root.V8DestroyedCellCleanup={active:true,reason:'V9.5.1-no-closed-dead-cell-rims-only-live-dead-edge-char'};
 })(typeof globalThis!=='undefined'?globalThis:this);
