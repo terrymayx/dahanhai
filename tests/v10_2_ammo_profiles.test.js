@@ -1,0 +1,25 @@
+const fs=require('fs');
+const vm=require('vm');
+const assert=require('assert');
+
+const src=fs.readFileSync('js/v8/34_v102_ammo.js','utf8');
+const ctx={console};ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(src,ctx,{filename:'js/v8/34_v102_ammo.js'});
+const A=ctx.V102Ammo;
+assert(A,'V102Ammo must exist');
+assert.strictEqual(A.normalizeType('bad'),'standard');
+assert.strictEqual(A.normalizePlayerType('bad'),'solid');
+assert.strictEqual(A.profileFor('solid').armorAttackScale,1.30);
+assert.strictEqual(A.directDamageScale('solid','beam'),1.30);
+assert.strictEqual(A.directDamageScale('chain','mast'),2.40*0.70);
+assert.strictEqual(A.directDamageScale('chain','hull'),0.55*0.70);
+assert.strictEqual(A.profileFor('explosive').blastRadiusScale,1.50);
+assert.strictEqual(A.profileFor('explosive').fractureScale,1.60);
+assert.strictEqual(A.profileFor('explosive').fatigueScale,1.75);
+assert.strictEqual(A.profileFor('explosive').fireScale,1.85);
+assert.strictEqual(A.profileFor('solid').chunkDamageScale,1.15);
+assert.strictEqual(A.profileFor('chain').chunkDamageScale,0.60);
+assert.strictEqual(A.profileFor('explosive').chunkDamageScale,1.05);
+assert.strictEqual(A.labelFor('solid'),'实心弹');
+assert.strictEqual(A.labelFor('chain'),'链弹');
+assert.strictEqual(A.labelFor('explosive'),'爆裂弹');
+console.log('V10.2 ammo profile tests passed');
