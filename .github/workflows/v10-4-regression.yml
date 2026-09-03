@@ -1,0 +1,41 @@
+name: V10.4 Regression
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-v104:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: V10.4 focused regression
+        run: |
+          set -e
+          for t in \
+            tests/v10_4_boarding_state.test.js \
+            tests/v10_4_boarding_nav.test.js \
+            tests/v10_4_boarding_units.test.js \
+            tests/v10_4_boarding_wave.test.js \
+            tests/v10_4_boarding_combat.test.js \
+            tests/v10_4_boarding_bridge.test.js \
+            tests/v10_4_boarding_control.test.js \
+            tests/v10_4_boarding_render.test.js \
+            tests/v10_4_integration.test.js; do
+            echo "== $t =="
+            node "$t"
+          done
+      - name: V10.4 changed-module syntax
+        run: |
+          set -e
+          for f in \
+            js/v8/44_v104_boarding.js \
+            js/v8/36_v104_boarding_bridge.js \
+            js/v8/45_v104_boarding_render.js \
+            js/v8/49_v104_boarding_control.js; do
+            node --check "$f"
+          done
