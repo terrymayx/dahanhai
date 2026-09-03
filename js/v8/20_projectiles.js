@@ -7,10 +7,11 @@
 
   function computeArcHeight(side,distance,variation){
     distance=Math.max(0,distance||0);
+    // V9.5.2: naval cannonballs fly almost flat. Keep only a small visual arc.
     const base=side==='player'
-      ? Math.max(145,Math.min(205,140+distance*.055))
-      : Math.max(90,Math.min(135,85+distance*.035));
-    return Math.max(0,base+(variation||0));
+      ? Math.max(12,Math.min(28,10+distance*.012))
+      : Math.max(8,Math.min(20,7+distance*.009));
+    return Math.max(0,base+(variation||0)*.18);
   }
 
   function estimateFlightTime(state,p){
@@ -37,7 +38,7 @@
     const flightTime=Math.max(.08,opts.flightTime==null?estimateFlightTime(state,base):opts.flightTime);
     const speed=Math.hypot(base.vx,base.vy)||1;
     const distance=speed*flightTime;
-    const arcHeight=Math.max(0,opts.arcHeight==null?computeArcHeight(side,distance,opts.arcVariation||0):opts.arcHeight);
+    const arcHeight=Math.max(0,opts.arcHeight==null?computeArcHeight(side,distance,opts.arcVariation||0):Math.min(opts.arcHeight,side==='player'?32:22));
     const gravity=arcHeight>0?8*arcHeight/(flightTime*flightTime):0;
     const initialVz=arcHeight>0?4*arcHeight/flightTime:0;
     const p={
