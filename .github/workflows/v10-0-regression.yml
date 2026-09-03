@@ -16,7 +16,14 @@ jobs:
         shell: bash
         run: |
           set -e
-          for t in tests/v10_0*.test.js; do
+          for t in \
+            tests/v10_0_fracture.test.js \
+            tests/v10_0_bending.test.js \
+            tests/v10_0_flooding.test.js \
+            tests/v10_0_chunks.test.js \
+            tests/v10_0_breach_visual.test.js \
+            tests/v10_0_hud.test.js \
+            tests/v10_0_integration.test.js; do
             [ -e "$t" ] || continue
             echo "== $t =="
             node "$t"
