@@ -13,7 +13,7 @@
     ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.translate(ox,oy);ctx.scale(scale,scale);
     ctx.fillStyle='rgba(5,30,48,.94)';ctx.fillRect(42,37,900,38);
     ctx.font='700 27px "Microsoft YaHei",sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle='#fff';
-    ctx.fillText('V10.1 · 战损表现与物理稳定优化',50,55);
+    ctx.fillText('V10.2 · 舰炮弹药与真实命中系统',50,55);
     ctx.restore();
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
