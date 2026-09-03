@@ -1,6 +1,6 @@
 (function(root){
   'use strict';
-  const C=root.V8Config,R=root.V8Render,V=root.V9VectorShip;
+  const C=root.V8Config,R=root.V8Render,V=root.V9VectorShip,A=root.V972PlayerAttack||null;
   if(!C||!R||!V||typeof R.draw!=='function')return;
   const originalDraw=R.draw;
 
@@ -21,11 +21,16 @@
     const canvas=document.getElementById('cv');if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;
     ctx.save();worldTransform(ctx,canvas);
 
+    const attack=A&&typeof A.getAttack==='function'?A.getAttack(state):Math.round(state.playerShellAttack||24);
     const pf=Math.round(Math.max(0,Math.min(1,state.player&&state.player.floodLevel||0))*100);
     const leaks=(state.player&&state.player.__v97LeakCount)||0;
-    ctx.font='700 17px "Microsoft YaHei",sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';
-    ctx.fillStyle=pf>=70?'#ffd08a':pf>=35?'#bfeaff':'#dff7ff';
-    ctx.fillText(`进水 ${pf}%${leaks?` · 漏点 ${leaks}`:''}`,250,96);
+    ctx.font='700 17px "Microsoft YaHei",sans-serif';ctx.textBaseline='middle';
+
+    ctx.textAlign='left';ctx.fillStyle='#ffd65a';
+    ctx.fillText(`炮攻 ${attack}`,250,96);
+
+    ctx.textAlign='right';ctx.fillStyle=pf>=70?'#ffd08a':pf>=35?'#bfeaff':'#dff7ff';
+    ctx.fillText(`进水 ${pf}%${leaks?` · 漏点 ${leaks}`:''}`,650,96);
 
     for(const ship of state.enemies||[]){
       if(!ship||ship.state!=='active')continue;
