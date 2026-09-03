@@ -27,6 +27,13 @@
     }
   }
 
+  function sampleCaptainControl(state){
+    if(!(state&&state.boarding&&state.boarding.active))return;
+    state.__v103TurnInput=0;
+    const ctl=root.DHH&&root.DHH.V104BoardingControl;
+    if(ctl&&typeof ctl.sample==='function')ctl.sample(state);
+  }
+
   function snapshotLocked(state){
     const out=[];
     if(!(state&&state.boarding&&state.boarding.active))return out;
@@ -57,6 +64,7 @@
     dt=Math.min(.05,Math.max(0,Number(dt)||0));
 
     V104.ensureState(state);
+    sampleCaptainControl(state);
     suppressBoardingBroadside(state);
     const locked=snapshotLocked(state);
 
@@ -65,6 +73,7 @@
     // V10.3 still owns normal naval combat. V10.4 takes over only the chosen
     // boardingApproach/boardingLocked ship after the legacy/naval update.
     V104.preUpdate(state,dt);
+    sampleCaptainControl(state);
     suppressBoardingBroadside(state);
     restoreLocked(state,locked);
 
@@ -78,6 +87,7 @@
   root.DHH.V104BoardingBridge={
     installed:true,
     suppressBoardingBroadside,
+    sampleCaptainControl,
     isBoardingActor
   };
 })(typeof globalThis!=='undefined'?globalThis:this);
