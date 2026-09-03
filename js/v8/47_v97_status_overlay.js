@@ -1,6 +1,6 @@
 (function(root){
   'use strict';
-  const C=root.V8Config,R=root.V8Render,V=root.V9VectorShip,G=root.V8ShipGrid,A=root.V972PlayerAttack||null,E=root.V954ImpactExplosion||null,Armor=root.V98Armor||null,Material=root.V99Material||null;
+  const C=root.V8Config,R=root.V8Render,V=root.V9VectorShip,G=root.V8ShipGrid,A=root.V972PlayerAttack||null,E=root.V954ImpactExplosion||null,Armor=root.V98Armor||null,Material=root.V99Material||null,Sinking=root.V100Sinking||null;
   if(!C||!R||!V||!G||typeof R.draw!=='function')return;
   const originalDraw=R.draw;
 
@@ -46,9 +46,7 @@
   function previewProjectile(state,target,cell,attack){
     const player=state&&state.player;
     let tx=target&&target.x||0,ty=target&&target.y||0;
-    if(cell&&typeof G.cellCenterWorld==='function'){
-      try{const p=G.cellCenterWorld(target,cell);tx=p.x;ty=p.y;}catch(e){}
-    }
+    if(cell&&typeof G.cellCenterWorld==='function'){try{const p=G.cellCenterWorld(target,cell);tx=p.x;ty=p.y;}catch(e){}}
     const px=player&&Number.isFinite(player.x)?player.x:tx-1,py=player&&Number.isFinite(player.y)?player.y:ty;
     let vx=tx-px,vy=ty-py;
     const d=Math.hypot(vx,vy)||1;vx=vx/d*900;vy=vy/d*900;
@@ -59,20 +57,31 @@
     if(Material&&typeof Material.resolveDirect==='function'){
       if(typeof Material.prepareCell==='function')Material.prepareCell(target,cell);
       const result=Material.resolveDirect(target,cell,previewProjectile(state,target,cell,attack));
-      return{
-        grade:result.grade,
-        label:typeof Material.gradeLabel==='function'?Material.gradeLabel(result.grade):result.grade,
-        current:Number.isFinite(cell.armorHp)?cell.armorHp:result.armorNow,
-        max:Number.isFinite(cell.armorMax)?cell.armorMax:result.armorMax,
-        impactAngle:result.impactAngle||0,
-        effectiveArmor:result.effectiveArmor||0
-      };
+      return{grade:result.grade,label:typeof Material.gradeLabel==='function'?Material.gradeLabel(result.grade):result.grade,current:Number.isFinite(cell.armorHp)?cell.armorHp:result.armorNow,max:Number.isFinite(cell.armorMax)?cell.armorMax:result.armorMax,impactAngle:result.impactAngle||0,effectiveArmor:result.effectiveArmor||0};
     }
     if(Armor&&typeof Armor.resolveDirectHit==='function'){
       const result=Armor.resolveDirectHit(target,cell,attack);
       return{grade:result.grade,label:typeof Armor.gradeLabel==='function'?Armor.gradeLabel(result.grade):result.grade,current:result.armor,max:result.armor,impactAngle:0,effectiveArmor:result.armor};
     }
     return null;
+  }
+
+  function compartmentSummary(ship){
+    const comps=ship&&ship.__v99Compartments||[];
+    if(!comps.length)return '舱水 --';
+    const values=comps.map(c=>Math.round(Math.max(0,Math.min(1,Number(c.water)||0))*100));
+    return `舱水 ${values.join(' | ')}%`;
+  }
+
+  function capsizeLabel(ship){
+    const stage=Sinking&&typeof Sinking.capsizeStage==='function'?Sinking.capsizeStage(ship):(ship&&ship.__v100CapsizeStage||'stable');
+    return stage==='locked'?'翻覆':stage==='capsizing'?'正在翻覆':stage==='danger'?'危险':stage==='listing'?'侧倾':'稳定';
+  }
+
+  function physicalSummary(ship){
+    const roll=Number(ship&&ship.__v100PhysicalRoll)||Number(ship&&ship.__v99Roll)||0;
+    const deg=Math.abs(roll)*180/Math.PI,bending=Math.max(0,Number(ship&&ship.__v100MaxBendingRatio)||0);
+    return `横倾 ${deg.toFixed(1)}° · ${capsizeLabel(ship)} · 弯矩 ${bending.toFixed(2)}×`;
   }
 
   function drawStatus(state){
@@ -92,13 +101,15 @@
 
     const target=activeTarget(state);
     if(target){
-      const cell=targetPreviewCell(state,target);
-      const preview=cell&&targetArmorPreview(state,target,cell,attack);
+      const cell=targetPreviewCell(state,target),preview=cell&&targetArmorPreview(state,target,cell,attack);
       if(preview){
-        ctx.fillStyle=gradeColor(preview.grade);
-        ctx.font='700 15px "Microsoft YaHei",sans-serif';
+        ctx.fillStyle=gradeColor(preview.grade);ctx.font='700 15px "Microsoft YaHei",sans-serif';
         ctx.fillText(`局部装甲 ${Math.round(preview.current)}/${Math.round(preview.max)} · 入射角 ${Math.round(preview.impactAngle)}° · 等效装甲 ${Math.round(preview.effectiveArmor)} · 预计 ${preview.label}`,250,120);
       }
+      ctx.fillStyle='#bfeaff';ctx.font='700 14px "Microsoft YaHei",sans-serif';
+      ctx.fillText(compartmentSummary(target),250,143);
+      ctx.fillStyle=Math.abs(Number(target.__v100PhysicalRoll)||Number(target.__v99Roll)||0)>=.56?'#ffb36b':'#dff7ff';
+      ctx.fillText(physicalSummary(target),250,164);
     }
 
     ctx.textAlign='right';ctx.font='700 17px "Microsoft YaHei",sans-serif';ctx.fillStyle=pf>=70?'#ffd08a':pf>=35?'#bfeaff':'#dff7ff';
@@ -115,5 +126,5 @@
   }
 
   R.draw=function(state){originalDraw(state);drawStatus(state);};
-  root.V97StatusOverlay={drawStatus,targetPreviewCell,activeTarget,targetArmorPreview,previewProjectile};
+  root.V97StatusOverlay={drawStatus,targetPreviewCell,activeTarget,targetArmorPreview,previewProjectile,compartmentSummary,physicalSummary};
 })(typeof globalThis!=='undefined'?globalThis:this);
