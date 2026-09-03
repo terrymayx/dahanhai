@@ -34,6 +34,7 @@ jobs:
           set -e
           for f in \
             js/v8/44_v104_boarding.js \
+            js/v8/44_v104_nav_invalidation.js \
             js/v8/36_v104_boarding_bridge.js \
             js/v8/45_v104_boarding_render.js \
             js/v8/49_v104_boarding_control.js; do
