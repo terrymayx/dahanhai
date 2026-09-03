@@ -2,56 +2,51 @@
   'use strict';
 
   const G=root.V8ShipGrid,B=root.V8Battle;
-  if(!G||!B)throw new Error('V9.5.5 detach cleanup requires grid and battle');
+  if(!G||!B)throw new Error('V9.6 detach cleanup requires grid and battle');
 
   const originalDetach=G.detachDisconnectedComponents;
+  const originalDamageCell=G.damageCell;
   const originalUpdate=B.update;
   const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
 
   function key(gx,gy){return gx+','+gy;}
+  function markDirty(ship){
+    if(!ship)return;
+    ship.__v96VisualDirty=true;
+    ship.__v96DamageRevision=(ship.__v96DamageRevision||0)+1;
+  }
 
-  function markDetached(components){
+  function markDetached(components,ship){
+    let changed=false;
     for(const comp of components||[]){
       for(const cell of comp||[]){
-        cell.alive=false;
-        cell.hp=0;
-        cell.burning=false;
-        cell.detachedGone=true;
+        if(cell.detachedGone)continue;
+        cell.alive=false;cell.hp=0;cell.burning=false;cell.detachedGone=true;changed=true;
       }
     }
+    if(changed)markDirty(ship);
     return components||[];
   }
 
   G.detachDisconnectedComponents=function(ship){
-    return markDetached(originalDetach(ship));
+    return markDetached(originalDetach(ship),ship);
   };
 
-  function liveCells(ship){
-    return (ship&&ship.cells||[]).filter(c=>c.alive&&!c.detachedGone);
-  }
-
+  function liveCells(ship){return (ship&&ship.cells||[]).filter(c=>c.alive&&!c.detachedGone);}
   function anchorCell(ship,cells){
     if(!cells.length)return null;
     const cx=(ship.gridWidth-1)/2,cy=(ship.gridHeight-1)/2;
     const structural=cells.filter(c=>c.type==='beam'||c.type==='core');
     const pool=structural.length?structural:cells;
     let best=pool[0],bestD=Infinity;
-    for(const c of pool){
-      const d=(c.gx-cx)*(c.gx-cx)+(c.gy-cy)*(c.gy-cy);
-      if(d<bestD){bestD=d;best=c;}
-    }
+    for(const c of pool){const d=(c.gx-cx)*(c.gx-cx)+(c.gy-cy)*(c.gy-cy);if(d<bestD){bestD=d;best=c;}}
     return best;
   }
-
   function adjacentLive(ship,cell){
     const out=[];
-    for(const [dx,dy] of DIRS){
-      const n=ship.cellMap&&ship.cellMap[key(cell.gx+dx,cell.gy+dy)];
-      if(n&&n.alive&&!n.detachedGone)out.push(n);
-    }
+    for(const [dx,dy] of DIRS){const n=ship.cellMap&&ship.cellMap[key(cell.gx+dx,cell.gy+dy)];if(n&&n.alive&&!n.detachedGone)out.push(n);}
     return out;
   }
-
   function hasDestroyedNeighbor(ship,cell,radius){
     radius=radius||1;
     for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
@@ -61,96 +56,70 @@
     }
     return false;
   }
-
   function findBridges(ship,cells){
     const byKey=new Map(cells.map(c=>[key(c.gx,c.gy),c]));
-    const disc=new Map(),low=new Map(),parent=new Map(),bridges=[];
-    let time=0;
-
+    const disc=new Map(),low=new Map(),parent=new Map(),bridges=[];let time=0;
     function dfs(c){
-      const ck=key(c.gx,c.gy);
-      disc.set(ck,++time);low.set(ck,time);
+      const ck=key(c.gx,c.gy);disc.set(ck,++time);low.set(ck,time);
       for(const n of adjacentLive(ship,c)){
-        const nk=key(n.gx,n.gy);
-        if(!byKey.has(nk))continue;
-        if(!disc.has(nk)){
-          parent.set(nk,ck);dfs(n);
-          low.set(ck,Math.min(low.get(ck),low.get(nk)));
-          if(low.get(nk)>disc.get(ck))bridges.push([c,n]);
-        }else if(parent.get(ck)!==nk){
-          low.set(ck,Math.min(low.get(ck),disc.get(nk)));
-        }
+        const nk=key(n.gx,n.gy);if(!byKey.has(nk))continue;
+        if(!disc.has(nk)){parent.set(nk,ck);dfs(n);low.set(ck,Math.min(low.get(ck),low.get(nk)));if(low.get(nk)>disc.get(ck))bridges.push([c,n]);}
+        else if(parent.get(ck)!==nk)low.set(ck,Math.min(low.get(ck),disc.get(nk)));
       }
     }
-
-    for(const c of cells){const ck=key(c.gx,c.gy);if(!disc.has(ck))dfs(c);}
-    return bridges;
+    for(const c of cells){const ck=key(c.gx,c.gy);if(!disc.has(ck))dfs(c);}return bridges;
   }
-
   function componentWithoutBridge(ship,start,a,b){
-    const ak=key(a.gx,a.gy),bk=key(b.gx,b.gy),seen=new Set(),q=[start],out=[];
-    seen.add(key(start.gx,start.gy));
+    const ak=key(a.gx,a.gy),bk=key(b.gx,b.gy),seen=new Set(),q=[start],out=[];seen.add(key(start.gx,start.gy));
     for(let i=0;i<q.length;i++){
       const c=q[i];out.push(c);const ck=key(c.gx,c.gy);
-      for(const n of adjacentLive(ship,c)){
-        const nk=key(n.gx,n.gy);
-        if((ck===ak&&nk===bk)||(ck===bk&&nk===ak))continue;
-        if(seen.has(nk))continue;
-        seen.add(nk);q.push(n);
-      }
+      for(const n of adjacentLive(ship,c)){const nk=key(n.gx,n.gy);if((ck===ak&&nk===bk)||(ck===bk&&nk===ak)||seen.has(nk))continue;seen.add(nk);q.push(n);}
     }
     return out;
   }
-
   function collapseWeakNecks(ship){
     if(!ship||ship.state==='gone')return [];
-    const collapsed=[];
-    let safety=0;
-
-    while(safety++<12){
-      const cells=liveCells(ship);
-      if(cells.length<8)break;
+    const collapsed=[];let safety=0;
+    while(safety++<10){
+      const cells=liveCells(ship);if(cells.length<8)break;
       const anchor=anchorCell(ship,cells);if(!anchor)break;
-      const anchorKey=key(anchor.gx,anchor.gy),bridges=findBridges(ship,cells);
-      let removed=false;
-
+      const anchorKey=key(anchor.gx,anchor.gy),bridges=findBridges(ship,cells);let removed=false;
       for(const [a,b] of bridges){
         if(!(hasDestroyedNeighbor(ship,a,2)||hasDestroyedNeighbor(ship,b,2)))continue;
-
-        const sideA=componentWithoutBridge(ship,a,a,b);
-        const sideAKeys=new Set(sideA.map(c=>key(c.gx,c.gy)));
+        const sideA=componentWithoutBridge(ship,a,a,b),sideAKeys=new Set(sideA.map(c=>key(c.gx,c.gy)));
         const detachedSide=sideAKeys.has(anchorKey)?componentWithoutBridge(ship,b,a,b):sideA;
         const total=cells.length;
-
-        // Ignore harmless single tips. Collapse a meaningful lobe when its only support
-        // is a one-cell bridge created next to recent destruction.
-        if(detachedSide.length<3)continue;
-        if(detachedSide.length>Math.max(4,Math.floor(total*.48)))continue;
-
-        markDetached([detachedSide]);
-        collapsed.push(detachedSide);
-        removed=true;
-        break;
+        if(detachedSide.length<3||detachedSide.length>Math.max(4,Math.floor(total*.48)))continue;
+        markDetached([detachedSide],ship);collapsed.push(detachedSide);removed=true;break;
       }
       if(!removed)break;
     }
     return collapsed;
   }
-
   function cleanupShip(ship){
     if(!ship||ship.state==='gone')return [];
-    const out=[];
-    out.push(...G.detachDisconnectedComponents(ship));
-    out.push(...collapseWeakNecks(ship));
-    return out;
+    const out=[];out.push(...G.detachDisconnectedComponents(ship));out.push(...collapseWeakNecks(ship));return out;
   }
+
+  // Every real hit invalidates cached visuals. Expensive graph cleanup is queued
+  // only when a cell actually reaches zero HP, never scanned continuously.
+  G.damageCell=function(ship,cell,damage){
+    const res=originalDamageCell(ship,cell,damage);
+    if(res&&res.hit)markDirty(ship);
+    if(res&&res.destroyed&&ship)ship.__v96NeedsStructuralCleanup=true;
+    return res;
+  };
 
   B.update=function(state,dt){
     originalUpdate(state,dt);
     if(!state)return;
-    cleanupShip(state.player);
-    for(const ship of state.enemies||[])cleanupShip(ship);
+    const ships=[state.player,...(state.enemies||[])];
+    for(const ship of ships){
+      if(!ship||!ship.__v96NeedsStructuralCleanup)continue;
+      ship.__v96NeedsStructuralCleanup=false;
+      cleanupShip(ship);
+    }
   };
 
-  root.V952DetachCleanup={cleanupShip,markDetached,collapseWeakNecks,findBridges};
+  root.V952DetachCleanup={cleanupShip,markDetached,collapseWeakNecks,findBridges,markDirty};
 })(typeof globalThis!=='undefined'?globalThis:this);
