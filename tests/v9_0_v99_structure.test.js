@@ -1,0 +1,22 @@
+'use strict';
+const fs=require('fs');
+const vm=require('vm');
+const assert=require('assert');
+const path='js/v8/38_v99_structure.js';
+assert.ok(fs.existsSync(path),'V9.9 structure module should exist');
+const root={V8ShipGrid:{CELL_WEIGHT:{hull:1,deck:1,beam:3,core:3},damageCell(ship,cell,damage){cell.hp=Math.max(0,(cell.hp||1)-damage);if(cell.hp<=0)cell.alive=false;return{hit:true,destroyed:!cell.alive,cell};}}};
+const context={globalThis:root,console,Math};vm.createContext(context);vm.runInContext(fs.readFileSync(path,'utf8'),context,{filename:path});
+const S=root.V99Structure;assert.ok(S,'V99Structure should be exported');
+assert.strictEqual(S.LOCAL_RADIUS,9,'structure solver radius should stay local');
+assert.strictEqual(S.MAX_OVERLOAD_NODES,12,'one structure event must cap overload processing');
+assert.ok(Math.abs(S.LARGE_CHUNK_RATIO-.10)<1e-9,'large structural chunks should begin at 10% source mass');
+const beam={gx:2,gy:1,type:'beam',alive:true,hp:60,maxHp:60,fracture:0,fatigue:0};
+const weakened={...beam,fracture:.8,fatigue:.7};
+assert.ok(S.structuralCapacityFor(weakened)<S.structuralCapacityFor(beam),'fracture and fatigue should reduce carrying capacity');
+const ship={kind:'gunship',cellSize:8,gridWidth:10,gridHeight:4,cells:[],cellMap:Object.create(null),structuralChunks:[]};
+for(let i=0;i<10;i++){const c={gx:i,gy:1,type:i===4?'beam':'hull',alive:true,hp:36,maxHp:36,weight:1};ship.cells.push(c);ship.cellMap[i+',1']=c;}
+const component=[ship.cells[8],ship.cells[9]];
+const classified=S.classifyDetached(ship,[component]);
+assert.strictEqual(classified.large.length,1,'a detached component >=10% of source mass should become a structural chunk');
+assert.strictEqual(ship.structuralChunks.length,1,'large structural chunk should be retained on the ship');
+console.log('V9.9 local structural load regression passed');
