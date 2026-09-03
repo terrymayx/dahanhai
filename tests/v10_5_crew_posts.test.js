@@ -1,0 +1,10 @@
+'use strict';
+const {assert,makeContext,makeState,loadV105Core}=require('./v10_5_test_helpers');
+const ctx=makeContext(),st=makeState(ctx);loadV105Core(ctx);const Crew=ctx.V105Crew,Posts=ctx.V105CrewPosts;
+Crew.prepareBattle(st);Posts.assignPosts(st.player);
+const groups=Posts.gunGroups(st.player);assert.equal(groups.length,4);
+assert.ok(groups.every(g=>Array.isArray(g.gunIds)));
+const gunner=st.player.crew.find(c=>c.role==='gunner');Crew.killCrew(gunner,{kind:'test'});Posts.refreshStaffing(st.player);
+const summary=Posts.staffingSummary(st.player);assert.ok(summary.gunGroups.some(g=>g.multiplier===0.65||g.multiplier===0));
+assert.ok(summary.aliveSailors<=5);
+console.log('V10.5 crew posts: PASS');
