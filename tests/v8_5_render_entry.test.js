@@ -10,5 +10,5 @@ for(const f of ['00_v8_base.js','10_ship_grid.js','20_projectiles.js','30_battle
 assert(versions.every(v=>v===versions[0]),'V8.5-derived core modules must share the active cache key');
 assert(!html.includes('36_damage_flooding.js'),'removed V8.5 experimental flooding module must stay unloaded');
 const overlay=fs.readFileSync('js/v8/45_damage_overlay.js','utf8');
-for(const token of ['damageStage','主梁断裂'])assert(overlay.includes(token),`damage overlay must preserve ${token}`);
+for(const token of ['damageStage','主梁','局部应力','stressRupture'])assert(overlay.includes(token),`damage overlay must preserve staged beam damage feedback: ${token}`);
 console.log('V8.5 render/entry compatibility tests passed');
