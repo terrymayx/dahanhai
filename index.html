@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>大航海时代 V9.7.4 · 动态重炮爆炸范围</title>
+<title>大航海时代 V9.7.5 · 自适应炮攻</title>
 <style>
   html,body{margin:0;padding:0;background:#0b1e2e;height:100%;overflow:hidden;}
   canvas{display:block;position:fixed;left:0;top:0;touch-action:none;user-select:none;-webkit-user-select:none;}
@@ -14,31 +14,31 @@
 </head>
 <body>
 <canvas id="cv"></canvas>
-<div id="rot">🎮 请横屏体验<br><small style="font-size:14px;opacity:.7">V9.7.4 · 动态重炮爆炸范围</small></div>
-<!-- V9.7.4: player attack power now scales both direct damage and irregular blast radius. At attack 72 the blast radius is about 2.1x the base radius, with stronger meaningful edge damage and larger visual destruction. -->
-<script src="js/v8/00_v8_base.js?v=9.7.4"></script>
-<script src="js/v8/10_ship_grid.js?v=9.7.4"></script>
-<script src="js/v8/11_v94_fine_grid.js?v=9.7.4"></script>
-<script src="js/v8/20_projectiles.js?v=9.7.4"></script>
-<script src="js/v8/30_battle.js?v=9.7.4"></script>
-<script src="js/v8/31_v952_detach_cleanup.js?v=9.7.4"></script>
-<script src="js/v8/32_v954_impact_explosion.js?v=9.7.4"></script>
-<script src="js/v8/33_v972_player_attack.js?v=9.7.4"></script>
-<script src="js/v8/35_combat_tuning.js?v=9.7.4"></script>
-<script src="js/v8/36_damage_model.js?v=9.7.4"></script>
-<script src="js/v8/37_component_stress.js?v=9.7.4"></script>
-<script src="js/v8/37_v97_flooding.js?v=9.7.4"></script>
-<script src="js/v8/37_fire_damage.js?v=9.7.4"></script>
-<script src="js/v8/37_v97_fire_spread.js?v=9.7.4"></script>
-<script src="js/v8/38_vector_ship.js?v=9.7.4"></script>
-<script src="js/v8/38_v952_detach_visual.js?v=9.7.4"></script>
-<script src="js/v8/39_destroyed_cell_cleanup.js?v=9.7.4"></script>
-<script src="js/v8/40_render.js?v=9.7.4"></script>
-<script src="js/v8/40_v97_flood_pose.js?v=9.7.4"></script>
-<script src="js/v8/41_render_v9.js?v=9.7.4"></script>
-<script src="js/v8/45_damage_overlay.js?v=9.7.4"></script>
-<script src="js/v8/46_v952_hud_label.js?v=9.7.4"></script>
-<script src="js/v8/47_v97_status_overlay.js?v=9.7.4"></script>
-<script src="js/v8/50_input_loop.js?v=9.7.4"></script>
+<div id="rot">🎮 请横屏体验<br><small style="font-size:14px;opacity:.7">V9.7.5 · 自适应炮攻</small></div>
+<!-- V9.7.5: player cannon attack defaults to AUTO. Damage adapts per shot to current target class, integrity, flooding and battle progress; V9.7.4 blast radius continues to scale automatically from the live attack value. -->
+<script src="js/v8/00_v8_base.js?v=9.7.5"></script>
+<script src="js/v8/10_ship_grid.js?v=9.7.5"></script>
+<script src="js/v8/11_v94_fine_grid.js?v=9.7.5"></script>
+<script src="js/v8/20_projectiles.js?v=9.7.5"></script>
+<script src="js/v8/30_battle.js?v=9.7.5"></script>
+<script src="js/v8/31_v952_detach_cleanup.js?v=9.7.5"></script>
+<script src="js/v8/32_v954_impact_explosion.js?v=9.7.5"></script>
+<script src="js/v8/33_v972_player_attack.js?v=9.7.5"></script>
+<script src="js/v8/35_combat_tuning.js?v=9.7.5"></script>
+<script src="js/v8/36_damage_model.js?v=9.7.5"></script>
+<script src="js/v8/37_component_stress.js?v=9.7.5"></script>
+<script src="js/v8/37_v97_flooding.js?v=9.7.5"></script>
+<script src="js/v8/37_fire_damage.js?v=9.7.5"></script>
+<script src="js/v8/37_v97_fire_spread.js?v=9.7.5"></script>
+<script src="js/v8/38_vector_ship.js?v=9.7.5"></script>
+<script src="js/v8/38_v952_detach_visual.js?v=9.7.5"></script>
+<script src="js/v8/39_destroyed_cell_cleanup.js?v=9.7.5"></script>
+<script src="js/v8/40_render.js?v=9.7.5"></script>
+<script src="js/v8/40_v97_flood_pose.js?v=9.7.5"></script>
+<script src="js/v8/41_render_v9.js?v=9.7.5"></script>
+<script src="js/v8/45_damage_overlay.js?v=9.7.5"></script>
+<script src="js/v8/46_v952_hud_label.js?v=9.7.5"></script>
+<script src="js/v8/47_v97_status_overlay.js?v=9.7.5"></script>
+<script src="js/v8/50_input_loop.js?v=9.7.5"></script>
 </body>
 </html>
