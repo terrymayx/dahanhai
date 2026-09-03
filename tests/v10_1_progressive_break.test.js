@@ -1,0 +1,10 @@
+const fs=require('fs');
+const assert=require('assert');
+const path='js/v8/38_v101_progressive_break.js';
+assert(fs.existsSync(path),'V10.1 progressive break module should exist');
+const src=fs.readFileSync(path,'utf8');
+for(const stage of ["'stable'","'warning'","'yielding'","'tearing'","'separated'"])assert(src.includes(stage),`missing ${stage} state`);
+assert(src.includes('__v101CriticalSection'),'critical section should be cached');
+assert(src.includes('__v101BendVisual'),'render-only bend state should exist');
+assert(src.includes('forceSectionBreak'),'terminal separation should reuse V100 section break');
+console.log('V10.1 progressive break contract passed');
