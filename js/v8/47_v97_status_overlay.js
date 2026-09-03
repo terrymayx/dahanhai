@@ -22,13 +22,14 @@
     ctx.save();worldTransform(ctx,canvas);
 
     const attack=A&&typeof A.getAttack==='function'?A.getAttack(state):Math.round(state.playerShellAttack||72);
+    const auto=A&&typeof A.isAuto==='function'?A.isAuto(state):!!state.playerAttackAuto;
     const radiusScale=E&&typeof E.blastRadiusScale==='function'?E.blastRadiusScale({side:'player',attackPower:attack,damage:attack}):1;
     const pf=Math.round(Math.max(0,Math.min(1,state.player&&state.player.floodLevel||0))*100);
     const leaks=(state.player&&state.player.__v97LeakCount)||0;
     ctx.font='700 17px "Microsoft YaHei",sans-serif';ctx.textBaseline='middle';
 
     ctx.textAlign='left';ctx.fillStyle='#ffd65a';
-    ctx.fillText(`炮攻 ${attack} · 爆幅 ${radiusScale.toFixed(1)}×`,250,96);
+    ctx.fillText(`炮攻 ${attack}${auto?' AUTO':''} · 爆幅 ${radiusScale.toFixed(1)}×`,250,96);
 
     ctx.textAlign='right';ctx.fillStyle=pf>=70?'#ffd08a':pf>=35?'#bfeaff':'#dff7ff';
     ctx.fillText(`进水 ${pf}%${leaks?` · 漏点 ${leaks}`:''}`,650,96);
