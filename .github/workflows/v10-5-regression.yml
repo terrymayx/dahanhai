@@ -1,0 +1,45 @@
+name: V10.5 Regression
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-v105:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: V10.5 focused regression
+        run: |
+          set -e
+          for t in \
+            tests/v10_5_crew_roster.test.js \
+            tests/v10_5_crew_posts.test.js \
+            tests/v10_5_crew_damage.test.js \
+            tests/v10_5_staffing_effects.test.js \
+            tests/v10_5_boarding_roster.test.js \
+            tests/v10_5_auto_attack.test.js \
+            tests/v10_5_enemy_classes.test.js \
+            tests/v10_5_crew_render.test.js \
+            tests/v10_5_integration.test.js; do
+            echo "== $t =="
+            node "$t"
+          done
+      - name: V10.5 changed-module syntax
+        run: |
+          set -e
+          for f in \
+            js/v8/44_v105_crew.js \
+            js/v8/44_v105_crew_posts.js \
+            js/v8/44_v105_crew_ai.js \
+            js/v8/44_v105_crew_damage.js \
+            js/v8/36_v105_crew_bridge.js \
+            js/v8/36_v105_staffing_bridge.js \
+            js/v8/45_v105_crew_render.js \
+            js/v8/49_v105_crew_control.js; do
+            node --check "$f"
+          done
