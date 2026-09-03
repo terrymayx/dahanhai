@@ -169,6 +169,8 @@
 
         const Structure=root.V99Structure||null;
         if(Structure&&typeof Structure.queueLocalSolve==='function')Structure.queueLocalSolve(best,bestCell);
+        const Fracture=root.V100Fracture||null;
+        if(Fracture&&typeof Fracture.seedImpact==='function')Fracture.seedImpact(best,bestCell,{vx:p.vx,vy:p.vy,power:p.attackPower||p.damage,grade:p.impactGrade});
 
         const ratio=Grid.integrity(best);
         const threshold=best.side==='player'?.24:.34;
