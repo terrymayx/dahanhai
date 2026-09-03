@@ -2,7 +2,7 @@
   'use strict';
 
   const G=root.V8ShipGrid,V=root.V9VectorShip;
-  if(!G||!V||typeof V.drawShipLocal!=='function')throw new Error('V9.6 cached breach/fire rendering requires grid and vector ship');
+  if(!G||!V||typeof V.drawShipLocal!=='function')throw new Error('V9.7 cached breach/fire rendering requires grid and vector ship');
 
   const baseDrawShipLocal=V.drawShipLocal;
   const overlayCaches=new WeakMap();
@@ -16,7 +16,7 @@
     return null;
   }
   function getOverlay(ship){
-    const p=V.hullProfile(ship),pad=46,w=Math.ceil((p.orientation==='vertical'?p.beam:p.length)+pad*2),h=Math.ceil((p.orientation==='vertical'?p.length:p.beam)+pad*2);
+    const p=V.hullProfile(ship),pad=48,w=Math.ceil((p.orientation==='vertical'?p.beam:p.length)+pad*2),h=Math.ceil((p.orientation==='vertical'?p.length:p.beam)+pad*2);
     let s=overlayCaches.get(ship);if(s&&s.w===w&&s.h===h)return s;
     const canvas=createCanvas(w,h);if(!canvas)return null;
     s={canvas,ctx:canvas.getContext('2d'),w,h,revision:-1,ready:false,rebuilds:0};overlayCaches.set(ship,s);return s;
@@ -40,7 +40,6 @@
   }
   function centerOf(ship,cells){let x=0,y=0;for(const c of cells){const p=G.cellCenterLocal(ship,c);x+=p.x;y+=p.y;}return{x:x/cells.length,y:y/cells.length};}
 
-  // Dynamic fire touches only the active-burning list maintained by V9.6 fire logic.
   function drawBurning(ctx,ship,state){
     const active=(ship.__v96BurningCells||[]).filter(c=>c&&c.alive&&c.burning&&!c.detachedGone);
     if(!active.length)return;
@@ -57,23 +56,24 @@
   }
 
   function traceBreach(ctx,ship,cell,scale){
-    const cs=ship.cellSize||8,p=G.cellCenterLocal(ship,cell),s=seed(cell.gx,cell.gy),count=7,cx=p.x+(rnd(s,1)-.5)*cs*.14,cy=p.y+(rnd(s,2)-.5)*cs*.14,base=cs*(scale||.9);
-    ctx.beginPath();for(let i=0;i<count;i++){const a=Math.PI*2*i/count+(rnd(s,20+i)-.5)*.18,r=base*(.68+rnd(s,40+i)*.38),x=cx+Math.cos(a)*r*(.90+rnd(s,70+i)*.24),y=cy+Math.sin(a)*r*(.82+rnd(s,90+i)*.28);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.closePath();
+    const cs=ship.cellSize||8,p=G.cellCenterLocal(ship,cell),s=seed(cell.gx,cell.gy),count=8,cx=p.x+(rnd(s,1)-.5)*cs*.20,cy=p.y+(rnd(s,2)-.5)*cs*.20,base=cs*(scale||1.04);
+    ctx.beginPath();for(let i=0;i<count;i++){const a=Math.PI*2*i/count+(rnd(s,20+i)-.5)*.24,r=base*(.72+rnd(s,40+i)*.42),x=cx+Math.cos(a)*r*(.88+rnd(s,70+i)*.26),y=cy+Math.sin(a)*r*(.82+rnd(s,90+i)*.32);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.closePath();
   }
   function drawEdges(ctx,ship,dead){
-    const cs=ship.cellSize||8,map=ship.cellMap||Object.create(null);ctx.save();ctx.strokeStyle='rgba(46,25,17,.80)';ctx.lineWidth=Math.max(1,cs*.14);ctx.lineCap='round';
+    const cs=ship.cellSize||8,map=ship.cellMap||Object.create(null);ctx.save();ctx.strokeStyle='rgba(46,25,17,.72)';ctx.lineWidth=Math.max(1,cs*.13);ctx.lineCap='round';
     for(const cell of dead){
       const p=G.cellCenterLocal(ship,cell),h=cs*.5,s=seed(cell.gx,cell.gy),edges=[[-1,0,p.x-h,p.y-h,p.x-h,p.y+h],[1,0,p.x+h,p.y-h,p.x+h,p.y+h],[0,-1,p.x-h,p.y-h,p.x+h,p.y-h],[0,1,p.x-h,p.y+h,p.x+h,p.y+h]];
-      for(let ei=0;ei<edges.length;ei++){const e=edges[ei],n=map[key(cell.gx+e[0],cell.gy+e[1])];if(!n||!n.alive||n.detachedGone)continue;const j=(rnd(s,120+ei)-.5)*cs*.14;ctx.beginPath();if(e[0]){ctx.moveTo(e[2]+j,e[3]+cs*.10);ctx.lineTo(e[4]-j,e[5]-cs*.10);}else{ctx.moveTo(e[2]+cs*.10,e[3]+j);ctx.lineTo(e[4]-cs*.10,e[5]-j);}ctx.stroke();}
+      for(let ei=0;ei<edges.length;ei++){const e=edges[ei],n=map[key(cell.gx+e[0],cell.gy+e[1])];if(!n||!n.alive||n.detachedGone)continue;const j=(rnd(s,120+ei)-.5)*cs*.18;ctx.beginPath();if(e[0]){ctx.moveTo(e[2]+j,e[3]+cs*.10);ctx.lineTo(e[4]-j,e[5]-cs*.10);}else{ctx.moveTo(e[2]+cs*.10,e[3]+j);ctx.lineTo(e[4]-cs*.10,e[5]-j);}ctx.stroke();}
     }
     ctx.restore();
   }
 
   function rebuildOverlay(ship,s){
     const c=s.ctx;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,s.w,s.h);c.save();c.translate(s.w/2,s.h/2);
-    const dead=(ship.cells||[]).filter(x=>!x.alive&&!x.detachedGone);
+    const source=(ship.__v97BreachCells&&ship.__v97BreachCells.length)?ship.__v97BreachCells:(ship.cells||[]);
+    const dead=source.filter(x=>x&&!x.alive&&!x.detachedGone);
     if(dead.length){
-      c.fillStyle='rgba(43,145,191,.98)';for(const cell of dead){traceBreach(c,ship,cell,.92);c.fill();}
+      c.fillStyle='rgba(43,145,191,.98)';for(const cell of dead){traceBreach(c,ship,cell,1.07);c.fill();}
       drawEdges(c,ship,dead);
     }
     c.restore();s.revision=ship.__v96DamageRevision||0;s.ready=true;s.rebuilds++;
@@ -89,5 +89,5 @@
 
   V.drawActiveFire=drawBurning;V.traceIrregularBreach=traceBreach;
   V.getDamageOverlayCacheStats=function(ship){const s=overlayCaches.get(ship);return s?{revision:s.revision,rebuilds:s.rebuilds}:null;};
-  root.V8DestroyedCellCleanup={active:true,reason:'V9.6-cached-static-breaches-dynamic-active-fire-only'};
+  root.V8DestroyedCellCleanup={active:true,reason:'V9.7-registered-breach-cache-dynamic-fire'};
 })(typeof globalThis!=='undefined'?globalThis:this);
