@@ -11,10 +11,15 @@
     if(type==='solid'||type==='chain'||type==='explosive'||type==='standard')return type;
     return side==='player'?'solid':'standard';
   }
+  function ammoProfileFor(p){
+    const Ammo=root.V102Ammo||null;
+    return Ammo&&typeof Ammo.profileFor==='function'?Ammo.profileFor(p&&p.ammoType):null;
+  }
   function directAmmoScale(p,cell){
     const Ammo=root.V102Ammo||null;
     return Ammo&&typeof Ammo.directDamageScale==='function'?Ammo.directDamageScale(p&&p.ammoType,cell&&cell.type):1;
   }
+  function fireAmmoScale(p){const profile=ammoProfileFor(p);return profile&&Number.isFinite(profile.fireScale)?profile.fireScale:1;}
 
   function computeArcHeight(side,distance,variation){
     distance=Math.max(0,distance||0);
@@ -83,7 +88,9 @@
         p.impactArmor=Number(impact.effectiveArmor)||Number(impact.armor)||0;p.impactArmorBase=Number(impact.armorMax)||Number(impact.armor)||0;p.impactRatio=impact.ratio;p.impactGrade=impact.grade;p.impactCos=impact.impactCos;p.impactAngle=impact.impactAngle;
         const ammoScale=directAmmoScale(p,bestCell),scaledDamage=Math.max(.1,(Number(impact.effectiveDamage)||Number(p.damage)||0)*ammoScale);
         const directDamage=impact.ricochet?Math.max(.1,scaledDamage*.25):scaledDamage;p.effectiveDamage=directDamage;
-        const res=Grid.damageCell(best,bestCell,directDamage),hk=(best.id||best.kind)+':'+bestCell.gx+','+bestCell.gy;p.hitCells[hk]=true;
+        const Fire=root.V94FireDamage||null;
+        const res=Fire&&typeof Fire.damageCellWithFireScale==='function'?Fire.damageCellWithFireScale(best,bestCell,directDamage,fireAmmoScale(p)):Grid.damageCell(best,bestCell,directDamage);
+        const hk=(best.id||best.kind)+':'+bestCell.gx+','+bestCell.gy;p.hitCells[hk]=true;
         if(typeof state.onCellHit==='function')state.onCellHit(best,bestCell,hitPos,res,p);if(res.destroyed&&typeof state.onCellDestroyed==='function')state.onCellDestroyed(best,bestCell,hitPos,p);
         const Structure=root.V99Structure||null;if(Structure&&typeof Structure.queueLocalSolve==='function')Structure.queueLocalSolve(best,bestCell);
         const Fracture=root.V100Fracture||null;if(Fracture&&typeof Fracture.seedImpact==='function')Fracture.seedImpact(best,bestCell,{vx:p.vx,vy:p.vy,power:p.attackPower||p.damage,grade:p.impactGrade});
@@ -101,5 +108,5 @@
     state.projectiles=out;
   }
 
-  root.V8Projectile={PEN_COST,computeArcHeight,spawn,estimateFlightTime,updateArc,updateTrail,firstPhysicalHit,reflectProjectile,hitStructuralChunk,updateAll,ammoTypeFor,directAmmoScale};
+  root.V8Projectile={PEN_COST,computeArcHeight,spawn,estimateFlightTime,updateArc,updateTrail,firstPhysicalHit,reflectProjectile,hitStructuralChunk,updateAll,ammoTypeFor,ammoProfileFor,directAmmoScale,fireAmmoScale};
 })(typeof globalThis!=='undefined'?globalThis:this);
