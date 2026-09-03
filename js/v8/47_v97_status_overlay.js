@@ -1,6 +1,6 @@
 (function(root){
   'use strict';
-  const C=root.V8Config,R=root.V8Render,V=root.V9VectorShip,G=root.V8ShipGrid,A=root.V972PlayerAttack||null,E=root.V954ImpactExplosion||null,Armor=root.V98Armor||null;
+  const C=root.V8Config,R=root.V8Render,V=root.V9VectorShip,G=root.V8ShipGrid,A=root.V972PlayerAttack||null,E=root.V954ImpactExplosion||null,Armor=root.V98Armor||null,Material=root.V99Material||null;
   if(!C||!R||!V||!G||typeof R.draw!=='function')return;
   const originalDraw=R.draw;
 
@@ -32,14 +32,47 @@
     }
     for(const cell of target.cells||[])if(cell.alive&&!cell.detachedGone&&cell.type==='hull')return cell;
     for(const cell of target.cells||[])if(cell.alive&&!cell.detachedGone)return cell;
-    return {type:'hull'};
+    return {type:'hull',gx:0,gy:0};
   }
 
   function gradeColor(grade){
-    if(grade==='heavy')return '#ffb45f';
+    if(grade==='ricochet')return '#d7e0e7';
+    if(grade==='heavy')return '#ff9f57';
     if(grade==='penetrated')return '#ffe17a';
     if(grade==='resisted')return '#bfeaff';
     return '#d7e0e7';
+  }
+
+  function previewProjectile(state,target,cell,attack){
+    const player=state&&state.player;
+    let tx=target&&target.x||0,ty=target&&target.y||0;
+    if(cell&&typeof G.cellCenterWorld==='function'){
+      try{const p=G.cellCenterWorld(target,cell);tx=p.x;ty=p.y;}catch(e){}
+    }
+    const px=player&&Number.isFinite(player.x)?player.x:tx-1,py=player&&Number.isFinite(player.y)?player.y:ty;
+    let vx=tx-px,vy=ty-py;
+    const d=Math.hypot(vx,vy)||1;vx=vx/d*900;vy=vy/d*900;
+    return{vx,vy,damage:attack,attackPower:attack,__v99Ricocheted:false};
+  }
+
+  function targetArmorPreview(state,target,cell,attack){
+    if(Material&&typeof Material.resolveDirect==='function'){
+      if(typeof Material.prepareCell==='function')Material.prepareCell(target,cell);
+      const result=Material.resolveDirect(target,cell,previewProjectile(state,target,cell,attack));
+      return{
+        grade:result.grade,
+        label:typeof Material.gradeLabel==='function'?Material.gradeLabel(result.grade):result.grade,
+        current:Number.isFinite(cell.armorHp)?cell.armorHp:result.armorNow,
+        max:Number.isFinite(cell.armorMax)?cell.armorMax:result.armorMax,
+        impactAngle:result.impactAngle||0,
+        effectiveArmor:result.effectiveArmor||0
+      };
+    }
+    if(Armor&&typeof Armor.resolveDirectHit==='function'){
+      const result=Armor.resolveDirectHit(target,cell,attack);
+      return{grade:result.grade,label:typeof Armor.gradeLabel==='function'?Armor.gradeLabel(result.grade):result.grade,current:result.armor,max:result.armor,impactAngle:0,effectiveArmor:result.armor};
+    }
+    return null;
   }
 
   function drawStatus(state){
@@ -58,16 +91,18 @@
     ctx.fillText(`炮攻 ${attack} ${auto?'AUTO':'手动'} · 爆幅 ${radiusScale.toFixed(1)}×`,250,96);
 
     const target=activeTarget(state);
-    if(target&&Armor&&typeof Armor.resolveDirectHit==='function'){
-      const cell=targetPreviewCell(state,target)||{type:'hull'};
-      const preview=Armor.resolveDirectHit(target,cell,attack);
-      const label=typeof Armor.gradeLabel==='function'?Armor.gradeLabel(preview.grade):preview.grade;
-      ctx.fillStyle=gradeColor(preview.grade);
-      ctx.fillText(`目标装甲 ${Math.round(preview.armor)} · 预计 ${label}`,250,120);
+    if(target){
+      const cell=targetPreviewCell(state,target);
+      const preview=cell&&targetArmorPreview(state,target,cell,attack);
+      if(preview){
+        ctx.fillStyle=gradeColor(preview.grade);
+        ctx.font='700 15px "Microsoft YaHei",sans-serif';
+        ctx.fillText(`局部装甲 ${Math.round(preview.current)}/${Math.round(preview.max)} · 入射角 ${Math.round(preview.impactAngle)}° · 等效装甲 ${Math.round(preview.effectiveArmor)} · 预计 ${preview.label}`,250,120);
+      }
     }
 
-    ctx.textAlign='right';ctx.fillStyle=pf>=70?'#ffd08a':pf>=35?'#bfeaff':'#dff7ff';
-    ctx.fillText(`进水 ${pf}%${leaks?` · 漏点 ${leaks}`:''}`,650,96);
+    ctx.textAlign='right';ctx.font='700 17px "Microsoft YaHei",sans-serif';ctx.fillStyle=pf>=70?'#ffd08a':pf>=35?'#bfeaff':'#dff7ff';
+    ctx.fillText(`进水 ${pf}%${leaks?` · 外海破口 ${leaks}`:''}`,650,96);
 
     for(const ship of state.enemies||[]){
       if(!ship||ship.state!=='active')continue;
@@ -80,5 +115,5 @@
   }
 
   R.draw=function(state){originalDraw(state);drawStatus(state);};
-  root.V97StatusOverlay={drawStatus,targetPreviewCell,activeTarget};
+  root.V97StatusOverlay={drawStatus,targetPreviewCell,activeTarget,targetArmorPreview,previewProjectile};
 })(typeof globalThis!=='undefined'?globalThis:this);
