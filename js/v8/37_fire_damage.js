@@ -30,23 +30,26 @@
     if(!ship.__v96BurningCells.includes(cell))ship.__v96BurningCells.push(cell);
   }
 
-  function maybeIgnite(ship,cell,damage){
+  function maybeIgnite(ship,cell,damage,fireScale){
     if(!cell||!cell.alive||cell.burning)return false;
     const chance=FIRE_CHANCE[cell.type]||0;
     if(!chance||damage<3)return false;
     const severity=Math.min(1.65,Math.max(.65,damage/16));
-    if(Math.random()<chance*severity){
+    fireScale=Math.max(0,Number.isFinite(Number(fireScale))?Number(fireScale):1);
+    if(Math.random()<Math.min(.98,chance*severity*fireScale)){
       cell.burning=true;cell.fireAge=0;cell.fireDamage=0;addBurningCell(ship,cell);
       return true;
     }
     return false;
   }
 
-  G.damageCell=function(ship,cell,damage){
+  function damageCellWithFireScale(ship,cell,damage,fireScale){
     const res=originalDamageCell(ship,cell,damage);
-    if(res&&res.hit&&cell&&cell.alive)maybeIgnite(ship,cell,damage);
+    if(res&&res.hit&&cell&&cell.alive)maybeIgnite(ship,cell,damage,fireScale==null?1:fireScale);
     return res;
-  };
+  }
+
+  G.damageCell=function(ship,cell,damage){return damageCellWithFireScale(ship,cell,damage,1);};
 
   function allShips(state){return state?[state.player,...(state.enemies||[])].filter(Boolean):[];}
 
@@ -79,6 +82,7 @@
         cell.fireDamage=(cell.fireDamage||0)+FIRE_DPS*dt;
         if(cell.fireDamage>=1){
           const tick=Math.floor(cell.fireDamage);cell.fireDamage-=tick;
+          // Fire DOT deliberately bypasses armor/ammo scaling and only consumes cell HP.
           const res=originalDamageCell(ship,cell,tick);
           if(res&&res.destroyed){destroyByFire(state,ship,cell);continue;}
         }
@@ -91,5 +95,5 @@
   const originalUpdate=B.update;
   B.update=function(state,dt){originalUpdate(state,dt);updateFire(state,dt);};
 
-  root.V94FireDamage={prepareShip,maybeIgnite,updateFire,DECK_HP_MULT,FIRE_CHANCE,FIRE_DPS};
+  root.V94FireDamage={prepareShip,maybeIgnite,damageCellWithFireScale,updateFire,DECK_HP_MULT,FIRE_CHANCE,FIRE_DPS};
 })(typeof globalThis!=='undefined'?globalThis:this);
