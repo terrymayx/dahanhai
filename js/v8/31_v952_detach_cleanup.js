@@ -24,7 +24,10 @@
         cell.alive=false;cell.hp=0;cell.burning=false;cell.detachedGone=true;changed=true;
       }
     }
-    if(changed)markDirty(ship);
+    if(changed){
+      markDirty(ship);
+      ship.__v99TopologyRevision=(ship.__v99TopologyRevision||0)+1;
+    }
     return components||[];
   }
 
@@ -116,7 +119,10 @@
   G.damageCell=function(ship,cell,damage){
     const res=originalDamageCell(ship,cell,damage);
     if(res&&res.hit)markDirty(ship);
-    if(res&&res.destroyed&&ship)ship.__v96NeedsStructuralCleanup=true;
+    if(res&&res.destroyed&&ship){
+      ship.__v96NeedsStructuralCleanup=true;
+      ship.__v99TopologyRevision=(ship.__v99TopologyRevision||0)+1;
+    }
     return res;
   };
 
