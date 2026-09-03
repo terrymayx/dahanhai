@@ -1,0 +1,41 @@
+name: V10.3 Regression
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-v103:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: V10.3 focused regression
+        run: |
+          set -e
+          for t in \
+            tests/v10_3_battery.test.js \
+            tests/v10_3_arc_reload.test.js \
+            tests/v10_3_player_salvo.test.js \
+            tests/v10_3_enemy_broadside.test.js \
+            tests/v10_3_heading_control.test.js \
+            tests/v10_3_hud_fx.test.js \
+            tests/v10_3_invariants.test.js \
+            tests/v10_3_integration.test.js; do
+            echo "== $t =="
+            node "$t"
+          done
+      - name: V10.3 changed-module syntax
+        run: |
+          set -e
+          for f in \
+            js/v8/35_v103_broadside.js \
+            js/v8/49_v103_broadside_control.js \
+            js/v8/30_battle.js \
+            js/v8/41_render_v9.js \
+            js/v8/47_v97_status_overlay.js; do
+            node --check "$f"
+          done
