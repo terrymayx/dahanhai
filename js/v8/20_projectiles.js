@@ -7,7 +7,6 @@
 
   function computeArcHeight(side,distance,variation){
     distance=Math.max(0,distance||0);
-    // V9.5.2+: naval cannonballs fly almost flat. Keep only a small visual arc.
     const base=side==='player'
       ? Math.max(12,Math.min(28,10+distance*.012))
       : Math.max(8,Math.min(20,7+distance*.009));
@@ -46,8 +45,6 @@
       x:opts.x,y:opts.y,vx:opts.vx||0,vy:opts.vy||0,
       damage,attackPower:opts.attackPower==null?damage:opts.attackPower,side,life:opts.life||3,
       radius:opts.radius||5,dead:false,
-      // Kept for compatibility, but V9.5.3 no longer lets one cannonball tunnel
-      // through multiple physical layers in the same shot.
       penetration:opts.penetration==null?(side==='player'?78:0):opts.penetration,
       hitCells:Object.create(null),didHit:false,splashDone:false,
       z:0,prevZ:0,vz:initialVz,initialVz,gravity,arcHeight,flightTime,arcAge:0,
@@ -82,9 +79,6 @@
     }
   }
 
-  // Return the first LIVE physical grid cell actually crossed by this frame's
-  // projectile segment. We preserve the exact segment order so front hull/deck
-  // always blocks deeper layers and even another ship behind it.
   function firstPhysicalHit(ship,x0,y0,x1,y1){
     if(!ship||ship.state==='gone')return null;
     const a=Grid.worldToLocal(ship,x0,y0),b=Grid.worldToLocal(ship,x1,y1);
@@ -105,6 +99,22 @@
     return null;
   }
 
+  function reflectProjectile(p,normal){
+    normal=normal||{x:0,y:0};
+    let nx=Number(normal.x)||0,ny=Number(normal.y)||0;
+    const nd=Math.hypot(nx,ny)||1;nx/=nd;ny/=nd;
+    const dot=p.vx*nx+p.vy*ny;
+    let rvx=p.vx-2*dot*nx,rvy=p.vy-2*dot*ny;
+    if(!Number.isFinite(rvx)||!Number.isFinite(rvy)||(!rvx&&!rvy)){rvx=-p.vx;rvy=-p.vy;}
+    p.vx=rvx*.55;p.vy=rvy*.55;
+    p.damage=Math.max(.1,(Number(p.damage)||0)*.45);
+    p.attackPower=Math.max(.1,(Number(p.attackPower)||Number(p.damage)||0)*.45);
+    p.__v99Ricocheted=true;
+    p.life=Math.min(p.life,.9);
+    const speed=Math.hypot(p.vx,p.vy)||1;
+    p.x+=p.vx/speed*2.2;p.y+=p.vy/speed*2.2;
+  }
+
   function updateAll(state,dt){
     const out=[];
     for(const p of state.projectiles){
@@ -114,8 +124,6 @@
       p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
       updateTrail(p,dt);
 
-      // V9.5.3: choose the earliest actual intersection along the projectile ray,
-      // not the nearest cell center. This makes the foremost physical layer win.
       let bestHit=null;
       for(const ship of targetsFor(state,p)){
         const hit=firstPhysicalHit(ship,x0,y0,p.x,p.y);
@@ -128,37 +136,50 @@
       if(bestHit){
         const best=bestHit.ship,bestCell=bestHit.cell;
         p.didHit=true;
-        // Impact is the actual front-layer crossing point, while damage still
-        // belongs to that grid cell.
         const hitPos={x:bestHit.worldX,y:bestHit.worldY};
         p.x=hitPos.x;p.y=hitPos.y;
 
-        // V9.8 armor is deliberately resolved only for projectile damage. The
-        // generic Grid.damageCell path stays untouched so fire/stress/flooding
-        // continue to use their original damage values.
+        const Material=root.V99Material||null;
         const Armor=root.V98Armor||null;
         const attackPower=Math.max(0,Number(p.attackPower)||Number(p.damage)||0);
-        const impact=Armor&&typeof Armor.resolveDirectHit==='function'
-          ?Armor.resolveDirectHit(best,bestCell,attackPower)
-          :{armor:0,ratio:999,grade:'heavy',effectiveDamage:p.damage};
-        p.impactArmor=impact.armor;
+        let impact;
+        if(Material&&typeof Material.resolveDirect==='function'){
+          impact=Material.resolveDirect(best,bestCell,p);
+          Material.applyImpactState(best,bestCell,impact);
+        }else{
+          impact=Armor&&typeof Armor.resolveDirectHit==='function'
+            ?Armor.resolveDirectHit(best,bestCell,attackPower)
+            :{armor:0,ratio:999,grade:'heavy',effectiveDamage:p.damage};
+        }
+
+        p.impactArmor=Number(impact.effectiveArmor)||Number(impact.armor)||0;
+        p.impactArmorBase=Number(impact.armorMax)||Number(impact.armor)||0;
         p.impactRatio=impact.ratio;
         p.impactGrade=impact.grade;
+        p.impactCos=impact.impactCos;
+        p.impactAngle=impact.impactAngle;
         p.effectiveDamage=impact.effectiveDamage;
 
-        const res=Grid.damageCell(best,bestCell,impact.effectiveDamage);
+        const directDamage=impact.ricochet?Math.max(.1,impact.effectiveDamage*.25):impact.effectiveDamage;
+        const res=Grid.damageCell(best,bestCell,directDamage);
         const hk=(best.id||best.kind)+':'+bestCell.gx+','+bestCell.gy;
         p.hitCells[hk]=true;
         if(typeof state.onCellHit==='function')state.onCellHit(best,bestCell,hitPos,res,p);
         if(res.destroyed&&typeof state.onCellDestroyed==='function')state.onCellDestroyed(best,bestCell,hitPos,p);
+
+        const Structure=root.V99Structure||null;
+        if(Structure&&typeof Structure.queueLocalSolve==='function')Structure.queueLocalSolve(best,bestCell);
+
         const ratio=Grid.integrity(best);
         const threshold=best.side==='player'?.24:.34;
         if(ratio<=threshold&&typeof state.onShipCritical==='function')state.onShipCritical(best,ratio,p);
 
-        // Critical rule remains unchanged: one cannonball = one physical layer.
-        // Even a heavy penetration stops here. A later shot can enter only if the
-        // front physical cell was genuinely destroyed and left a real opening.
-        p.dead=true;
+        if(impact.ricochet){
+          reflectProjectile(p,impact.normal);
+        }else{
+          // Hard rule: one cannonball = one foremost physical layer.
+          p.dead=true;
+        }
       }
 
       if(!p.dead&&!p.didHit&&!p.splashDone&&p.arcHeight>0&&p.arcAge>=p.flightTime){
@@ -171,5 +192,5 @@
     state.projectiles=out;
   }
 
-  root.V8Projectile={PEN_COST,computeArcHeight,spawn,estimateFlightTime,updateArc,updateTrail,firstPhysicalHit,updateAll};
+  root.V8Projectile={PEN_COST,computeArcHeight,spawn,estimateFlightTime,updateArc,updateTrail,firstPhysicalHit,reflectProjectile,updateAll};
 })(typeof globalThis!=='undefined'?globalThis:this);
