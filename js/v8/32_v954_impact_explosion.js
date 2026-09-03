@@ -10,6 +10,7 @@
   const BASE_PLAYER_ATTACK=24;
   const MAX_PLAYER_POWER_SCALE=8;
   const MAX_RADIUS_SCALE=3.2;
+  const MAX_COMBINED_RADIUS_SCALE=4.2;
 
   function hash(a,b,c){
     let n=((a|0)*73856093)^((b|0)*19349663)^((c|0)*83492791)^0x9e3779b9;
@@ -21,6 +22,10 @@
     n^=n<<13;n^=n>>>17;n^=n<<5;
     return (n>>>0)/4294967295;
   }
+  function profileFor(projectile){
+    const Ammo=root.V102Ammo||null;
+    return Ammo&&typeof Ammo.profileFor==='function'?Ammo.profileFor(projectile&&projectile.ammoType):null;
+  }
 
   function playerPowerScale(projectile){
     if(!projectile||projectile.side!=='player')return 1;
@@ -28,29 +33,61 @@
     return Math.max(1,Math.min(MAX_PLAYER_POWER_SCALE,raw));
   }
 
-  function blastRadiusScale(projectile){
+  function baseBlastRadiusScale(projectile){
     const power=playerPowerScale(projectile);
     if(power<=1)return 1;
     return Math.min(MAX_RADIUS_SCALE,1+Math.sqrt(power-1)*.80);
   }
 
-  function addImpactFx(state,pos,cell,seed,powerScale,radiusScale){
+  function ammoScales(projectile){
+    const profile=profileFor(projectile)||{};
+    const baseRadius=baseBlastRadiusScale(projectile);
+    return {
+      armorAttackScale:Number.isFinite(profile.armorAttackScale)?profile.armorAttackScale:1,
+      blastRadiusScale:Math.max(.15,Math.min(MAX_COMBINED_RADIUS_SCALE,baseRadius*(Number.isFinite(profile.blastRadiusScale)?profile.blastRadiusScale:1))),
+      splashDamageScale:Number.isFinite(profile.splashDamageScale)?profile.splashDamageScale:1,
+      fractureScale:Number.isFinite(profile.fractureScale)?profile.fractureScale:1,
+      fatigueScale:Number.isFinite(profile.fatigueScale)?profile.fatigueScale:1,
+      fireScale:Number.isFinite(profile.fireScale)?profile.fireScale:1
+    };
+  }
+
+  function blastRadiusScale(projectile){return ammoScales(projectile).blastRadiusScale;}
+  function scaleSplashResult(result,projectile){
+    result=result||{};
+    const scales=ammoScales(projectile);
+    return Object.assign({},result,{
+      effectiveDamage:Math.max(.1,(Number(result.effectiveDamage)||0)*scales.splashDamageScale),
+      fractureGain:Math.max(0,(Number(result.fractureGain)||0)*scales.fractureScale),
+      fatigueGain:Math.max(0,(Number(result.fatigueGain)||0)*scales.fatigueScale)
+    });
+  }
+
+  function addImpactFx(state,pos,cell,seed,powerScale,radiusScale,projectile){
     if(!state||!state.fx)return;
     powerScale=Math.max(1,Math.min(MAX_PLAYER_POWER_SCALE,Number(powerScale)||1));
-    radiusScale=Math.max(1,Math.min(MAX_RADIUS_SCALE,Number(radiusScale)||1));
-    const visualScale=1+(radiusScale-1)*.38;
-    const lobes=Math.min(10,4+Math.floor(rnd(seed,1)*3)+Math.floor((radiusScale-1)*2.3));
+    radiusScale=Math.max(.25,Math.min(MAX_COMBINED_RADIUS_SCALE,Number(radiusScale)||1));
+    const visualScale=Math.max(.55,1+(radiusScale-1)*.38);
+    const lobes=Math.max(2,Math.min(12,4+Math.floor(rnd(seed,1)*3)+Math.floor((radiusScale-1)*2.3)));
     for(let i=0;i<lobes;i++){
       const a=rnd(seed,10+i)*Math.PI*2;
       const d=(4+rnd(seed,20+i)*18)*visualScale;
-      state.fx.push({k:'boom',x:pos.x+Math.cos(a)*d,y:pos.y+Math.sin(a)*d,t:0,dur:(.28+rnd(seed,30+i)*.18)*Math.min(1.38,visualScale),r:(22+rnd(seed,40+i)*24)*visualScale});
+      state.fx.push({k:'boom',x:pos.x+Math.cos(a)*d,y:pos.y+Math.sin(a)*d,t:0,dur:(.28+rnd(seed,30+i)*.18)*Math.min(1.48,visualScale),r:(22+rnd(seed,40+i)*24)*visualScale});
     }
     state.fx.push({k:'impactBurst',x:pos.x,y:pos.y,t:0,dur:.36,r:(38+rnd(seed,55)*18)*visualScale});
-    const count=Math.min(52,16+Math.floor(rnd(seed,60)*10)+Math.floor((powerScale-1)*5)+Math.floor((radiusScale-1)*5));
+    const count=Math.max(6,Math.min(56,16+Math.floor(rnd(seed,60)*10)+Math.floor((powerScale-1)*5)+Math.floor((radiusScale-1)*5)));
     for(let i=0;i<count;i++){
       const a=rnd(seed,70+i)*Math.PI*2;
       const speed=(90+rnd(seed,100+i)*210)*(1+(powerScale-1)*.10+(radiusScale-1)*.09);
       state.fx.push({k:'splinter',x:pos.x,y:pos.y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed-(35+rnd(seed,130+i)*85),t:0,dur:.42+rnd(seed,160+i)*.50,r:(2.5+rnd(seed,190+i)*4.5)*Math.min(1.55,visualScale),rot:rnd(seed,220+i)*Math.PI*2,vr:(rnd(seed,250+i)-.5)*10});
+    }
+    // Chain shot uses existing bounded splinter FX to suggest the sideways chain/rope sweep; no new renderer path is required.
+    if(projectile&&projectile.ammoType==='chain'&&cell&&(cell.type==='mast'||cell.type==='rudder'||cell.type==='cannon')){
+      const vx=Number(projectile.vx)||1,vy=Number(projectile.vy)||0,d=Math.hypot(vx,vy)||1,nx=-vy/d,ny=vx/d;
+      for(let i=0;i<8;i++){
+        const side=i<4?-1:1,speed=80+rnd(seed,300+i)*120;
+        state.fx.push({k:'splinter',x:pos.x+nx*side*(4+i%4)*2,y:pos.y+ny*side*(4+i%4)*2,vx:nx*side*speed+(vx/d)*25,vy:ny*side*speed+(vy/d)*25,t:0,dur:.32+rnd(seed,330+i)*.28,r:2+rnd(seed,350+i)*3,rot:rnd(seed,370+i)*Math.PI*2,vr:(rnd(seed,390+i)-.5)*9});
+      }
     }
     if(state.fx.length>380)state.fx.splice(0,state.fx.length-380);
   }
@@ -67,12 +104,12 @@
   function applyIrregularSplash(state,ship,impactCell,projectile,seed){
     if(!ship||!impactCell)return [];
     const affected=[];
-    const powerScale=playerPowerScale(projectile),radiusScale=blastRadiusScale(projectile);
+    const powerScale=playerPowerScale(projectile),scales=ammoScales(projectile),radiusScale=scales.blastRadiusScale;
     const baseRadius=RADIUS_CELLS*radiusScale*(.90+rnd(seed,2)*.22);
     const stretchX=.74+rnd(seed,3)*.56,stretchY=.74+rnd(seed,4)*.56;
-    const scanRadius=Math.ceil(baseRadius*1.55+2);
+    const scanRadius=Math.min(34,Math.ceil(baseRadius*1.55+2));
     const candidates=localCandidates(ship,impactCell,scanRadius);
-    const Material=root.V99Material||null,Armor=root.V98Armor||null,Structure=root.V99Structure||null,Fracture=root.V100Fracture||null,Branches=root.V101CrackBranches||null;
+    const Material=root.V99Material||null,Armor=root.V98Armor||null,Structure=root.V99Structure||null,Fracture=root.V100Fracture||null,Branches=root.V101CrackBranches||null,Fire=root.V94FireDamage||null;
     let structureQueued=0,fractureSeeded=0,branchSeeded=0;
 
     for(const cell of candidates){
@@ -91,27 +128,29 @@
       const rawDamage=Math.max(minDamage,Math.round(MAX_SPLASH_DAMAGE*powerScale*falloff*jitter));
       if(!(rawDamage>0))continue;
 
-      const attackPower=Number(projectile&&projectile.attackPower)||Number(projectile&&projectile.damage)||BASE_PLAYER_ATTACK;
+      const baseAttack=Number(projectile&&projectile.attackPower)||Number(projectile&&projectile.damage)||BASE_PLAYER_ATTACK;
+      const attackPower=baseAttack*scales.armorAttackScale;
       let splash;
       if(Material&&typeof Material.resolveSplash==='function'){
-        splash=Material.resolveSplash(ship,cell,rawDamage,attackPower);
+        splash=scaleSplashResult(Material.resolveSplash(ship,cell,rawDamage,attackPower),projectile);
         Material.applyImpactState(ship,cell,splash);
       }else{
-        splash=Armor&&typeof Armor.resolveSplashHit==='function'?Armor.resolveSplashHit(ship,cell,rawDamage,attackPower):{armor:0,ratio:999,grade:'heavy',effectiveDamage:rawDamage};
+        splash=Armor&&typeof Armor.resolveSplashHit==='function'?Armor.resolveSplashHit(ship,cell,rawDamage,attackPower):{armor:0,ratio:999,grade:'heavy',effectiveDamage:rawDamage,fractureGain:0,fatigueGain:0};
+        splash=scaleSplashResult(splash,projectile);
       }
       const effectiveDamage=splash.effectiveDamage;
       if(!(effectiveDamage>0))continue;
 
-      const res=G.damageCell(ship,cell,effectiveDamage);
+      const res=Fire&&typeof Fire.damageCellWithFireScale==='function'?Fire.damageCellWithFireScale(ship,cell,effectiveDamage,scales.fireScale):G.damageCell(ship,cell,effectiveDamage);
       affected.push({cell,rawDamage,effectiveDamage,armor:splash.effectiveArmor||splash.armor,ratio:splash.ratio,grade:splash.grade,destroyed:!!(res&&res.destroyed),normalized});
       if(Structure&&structureQueued<4&&(cell.type==='hull'||cell.type==='deck'||cell.type==='beam'||cell.type==='core')&&(res&&res.destroyed||splash.grade==='heavy')){
         Structure.queueLocalSolve(ship,cell);structureQueued++;
       }
       if(Fracture&&fractureSeeded<6&&typeof Fracture.seedImpact==='function'&&(cell.type==='hull'||cell.type==='deck'||cell.type==='beam'||cell.type==='core')){
-        const radial=Math.hypot(dx,dy)||1;
-        Fracture.seedImpact(ship,cell,{vx:dx/radial,vy:dy/radial,power:attackPower*falloff*.55,grade:splash.grade});
+        const radial=Math.hypot(dx,dy)||1,fracturePower=baseAttack*falloff*.55*Math.min(2,scales.fractureScale);
+        Fracture.seedImpact(ship,cell,{vx:dx/radial,vy:dy/radial,power:fracturePower,grade:splash.grade});
         if(Branches&&branchSeeded<4&&typeof Branches.registerImpact==='function'){
-          Branches.registerImpact(ship,cell,{vx:dx/radial,vy:dy/radial,power:attackPower*falloff*.55,grade:splash.grade});
+          Branches.registerImpact(ship,cell,{vx:dx/radial,vy:dy/radial,power:fracturePower,grade:splash.grade});
           branchSeeded++;
         }
         fractureSeeded++;
@@ -136,11 +175,11 @@
         if(!ship||!cell||!pos||!p||p.__v954Exploded)return;
         p.__v954Exploded=true;
         const timeSeed=Math.floor((state.time||0)*1000),seed=hash(cell.gx,cell.gy,timeSeed+(p.side==='player'?17:31));
-        const powerScale=playerPowerScale(p),radiusScale=blastRadiusScale(p);
-        addImpactFx(state,pos,cell,seed,powerScale,radiusScale);
+        const powerScale=playerPowerScale(p),scales=ammoScales(p),radiusScale=scales.blastRadiusScale;
+        addImpactFx(state,pos,cell,seed,powerScale,radiusScale,p);
         const affected=applyIrregularSplash(state,ship,cell,p,seed);
         let destroyed=0;for(const a of affected)if(a.destroyed)destroyed++;
-        const summary={affected:affected.length,destroyed,powerScale,radiusScale,impactGrade:p.impactGrade||null,impactRatio:p.impactRatio||0,impactArmor:p.impactArmor||0};
+        const summary={affected:affected.length,destroyed,powerScale,radiusScale,ammoType:p.ammoType||'standard',impactGrade:p.impactGrade||null,impactRatio:p.impactRatio||0,impactArmor:p.impactArmor||0};
         const feedback=root.V98HeavyFeedback||null;
         if(feedback&&typeof feedback.onImpact==='function'){try{feedback.onImpact(state,ship,cell,pos,p,summary);}catch(e){}}
         if(state.combatEvents){state.combatEvents.push({type:'impact_explosion',payload:{x:pos.x,y:pos.y,shipId:ship.id,...summary},time:state.time||0});if(state.combatEvents.length>32)state.combatEvents.splice(0,state.combatEvents.length-32);}
@@ -149,6 +188,6 @@
     };
   }
 
-  root.V954ImpactExplosion={applyIrregularSplash,addImpactFx,localCandidates,playerPowerScale,blastRadiusScale,RADIUS_CELLS,MAX_SPLASH_DAMAGE,BASE_PLAYER_ATTACK,MAX_PLAYER_POWER_SCALE,MAX_RADIUS_SCALE};
+  root.V954ImpactExplosion={applyIrregularSplash,addImpactFx,localCandidates,playerPowerScale,baseBlastRadiusScale,ammoScales,scaleSplashResult,blastRadiusScale,RADIUS_CELLS,MAX_SPLASH_DAMAGE,BASE_PLAYER_ATTACK,MAX_PLAYER_POWER_SCALE,MAX_RADIUS_SCALE,MAX_COMBINED_RADIUS_SCALE};
   install();
 })(typeof globalThis!=='undefined'?globalThis:this);
