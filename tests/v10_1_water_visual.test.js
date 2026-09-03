@@ -1,0 +1,10 @@
+const fs=require('fs');
+const assert=require('assert');
+const path='js/v8/39_v101_compartment_water_visual.js';
+assert(fs.existsSync(path),'V10.1 compartment water visual module should exist');
+const src=fs.readFileSync(path,'utf8');
+assert(src.includes('__v99Compartments'),'water visual must use existing compartment water data');
+assert(src.includes('__v101WaterVisual'),'water visual cache should be stored on ship');
+assert(src.includes('revision'),'water visual should be cache/revision driven');
+assert(src.includes('draw'),'water visual module should expose drawing behavior');
+console.log('V10.1 water visual contract passed');
