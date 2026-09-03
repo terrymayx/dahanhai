@@ -25,6 +25,7 @@
 
   function prepareShip(ship){
     if(!ship||!ship.cells)return ship;
+    if(!Number.isFinite(ship.__v99MaterialRevision))ship.__v99MaterialRevision=0;
     for(const cell of ship.cells)prepareCell(ship,cell);
     return ship;
   }
@@ -63,11 +64,17 @@
     return Math.min(1.35,1.05+(ratio-1.5)*.18);
   }
 
+  function projectileLocalVelocity(ship,projectile){
+    const vx=Number(projectile&&projectile.vx)||0,vy=Number(projectile&&projectile.vy)||0;
+    const r=-(Number(ship&&ship.rotation)||0),c=Math.cos(r),s=Math.sin(r);
+    return{x:vx*c-vy*s,y:vx*s+vy*c};
+  }
+
   function resolveDirect(ship,cell,projectile){
     prepareCell(ship,cell);
     projectile=projectile||{};
-    const vx=Number(projectile.vx)||0,vy=Number(projectile.vy)||0,speed=Math.hypot(vx,vy)||1;
-    const v={x:vx/speed,y:vy/speed};
+    const localV=projectileLocalVelocity(ship,projectile),speed=Math.hypot(localV.x,localV.y)||1;
+    const v={x:localV.x/speed,y:localV.y/speed};
     let normal=surfaceNormal(ship,cell);
     if(!normal.x&&!normal.y)normal={x:-v.x,y:-v.y};
     const impactCos=clamp(Math.abs((-v.x)*normal.x+(-v.y)*normal.y),0,1);
@@ -123,6 +130,7 @@
         const scale=(Math.abs(dx)+Math.abs(dy)===1)?.16:.08;
         n.fatigue=clamp(n.fatigue+(result.fatigueGain||0)*scale,0,1);
       }
+      ship.__v99MaterialRevision=(ship.__v99MaterialRevision||0)+1;
     }
     return cell;
   }
@@ -133,9 +141,10 @@
     power=clamp(Number(power)||0,0,4);
     cell.fracture=clamp(cell.fracture+power*.055,0,1);
     cell.fatigue=clamp(cell.fatigue+power*.045,0,1);
+    if(ship)ship.__v99MaterialRevision=(ship.__v99MaterialRevision||0)+1;
   }
 
   function gradeLabel(grade){return GRADE_LABELS[grade]||String(grade||'');}
 
-  root.V99Material={MATERIAL_WEAR,STRUCTURAL_BASE,GRADE_LABELS,prepareCell,prepareShip,surfaceNormal,currentArmor,resolveDirect,resolveSplash,applyImpactState,addBlastFatigue,gradeLabel};
+  root.V99Material={MATERIAL_WEAR,STRUCTURAL_BASE,GRADE_LABELS,prepareCell,prepareShip,surfaceNormal,currentArmor,projectileLocalVelocity,resolveDirect,resolveSplash,applyImpactState,addBlastFatigue,gradeLabel};
 })(typeof globalThis!=='undefined'?globalThis:this);
