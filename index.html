@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>大航海时代 V9.8 · 重炮装甲与破坏反馈系统</title>
+<title>大航海时代 V9.9 · 真实船体结构与浮力破坏系统</title>
 <style>
   html,body{margin:0;padding:0;background:#0b1e2e;height:100%;overflow:hidden;}
   canvas{display:block;position:fixed;left:0;top:0;touch-action:none;user-select:none;-webkit-user-select:none;}
@@ -14,34 +14,38 @@
 </head>
 <body>
 <canvas id="cv"></canvas>
-<div id="rot">🎮 请横屏体验<br><small style="font-size:14px;opacity:.7">V9.8 · 重炮装甲与破坏反馈系统</small></div>
-<!-- V9.8.0: cannon attack now resolves ship/type armor and penetration grades; high attack still expands blast radius, splash scans only a local grid window, heavy hits add capped impact feedback, and manual attack gains a synchronized slider with target armor prediction. -->
-<script src="js/v8/00_v8_base.js?v=9.8.0"></script>
-<script src="js/v8/10_ship_grid.js?v=9.8.0"></script>
-<script src="js/v8/11_v94_fine_grid.js?v=9.8.0"></script>
-<script src="js/v8/20_projectiles.js?v=9.8.0"></script>
-<script src="js/v8/30_battle.js?v=9.8.0"></script>
-<script src="js/v8/31_v952_detach_cleanup.js?v=9.8.0"></script>
-<script src="js/v8/32_v954_impact_explosion.js?v=9.8.0"></script>
-<script src="js/v8/33_v972_player_attack.js?v=9.8.0"></script>
-<script src="js/v8/34_v98_armor.js?v=9.8.0"></script>
-<script src="js/v8/35_combat_tuning.js?v=9.8.0"></script>
-<script src="js/v8/36_damage_model.js?v=9.8.0"></script>
-<script src="js/v8/37_component_stress.js?v=9.8.0"></script>
-<script src="js/v8/37_v97_flooding.js?v=9.8.0"></script>
-<script src="js/v8/37_fire_damage.js?v=9.8.0"></script>
-<script src="js/v8/37_v97_fire_spread.js?v=9.8.0"></script>
-<script src="js/v8/38_vector_ship.js?v=9.8.0"></script>
-<script src="js/v8/38_v952_detach_visual.js?v=9.8.0"></script>
-<script src="js/v8/39_destroyed_cell_cleanup.js?v=9.8.0"></script>
-<script src="js/v8/40_render.js?v=9.8.0"></script>
-<script src="js/v8/40_v97_flood_pose.js?v=9.8.0"></script>
-<script src="js/v8/42_v98_heavy_feedback.js?v=9.8.0"></script>
-<script src="js/v8/41_render_v9.js?v=9.8.0"></script>
-<script src="js/v8/45_damage_overlay.js?v=9.8.0"></script>
-<script src="js/v8/46_v952_hud_label.js?v=9.8.0"></script>
-<script src="js/v8/47_v97_status_overlay.js?v=9.8.0"></script>
-<script src="js/v8/50_input_loop.js?v=9.8.0"></script>
-<script src="js/v8/48_v976_attack_control.js?v=9.8.0"></script>
+<div id="rot">🎮 请横屏体验<br><small style="font-size:14px;opacity:.7">V9.9 · 真实船体结构与浮力破坏系统</small></div>
+<!-- V9.9.0: real physical destruction keeps the 8px foremost-layer collision model while adding local armor fatigue, incidence/ricochet, event-driven structural load, open-water compartment flooding, center-of-mass/buoyancy roll and trim, and independently floating large structural chunks. -->
+<script src="js/v8/00_v8_base.js?v=9.9.0"></script>
+<script src="js/v8/10_ship_grid.js?v=9.9.0"></script>
+<script src="js/v8/11_v94_fine_grid.js?v=9.9.0"></script>
+<script src="js/v8/20_projectiles.js?v=9.9.0"></script>
+<script src="js/v8/30_battle.js?v=9.9.0"></script>
+<script src="js/v8/31_v952_detach_cleanup.js?v=9.9.0"></script>
+<script src="js/v8/32_v954_impact_explosion.js?v=9.9.0"></script>
+<script src="js/v8/33_v972_player_attack.js?v=9.9.0"></script>
+<script src="js/v8/34_v98_armor.js?v=9.9.0"></script>
+<script src="js/v8/34_v99_material.js?v=9.9.0"></script>
+<script src="js/v8/35_combat_tuning.js?v=9.9.0"></script>
+<script src="js/v8/36_damage_model.js?v=9.9.0"></script>
+<script src="js/v8/37_component_stress.js?v=9.9.0"></script>
+<script src="js/v8/37_v97_flooding.js?v=9.9.0"></script>
+<script src="js/v8/37_fire_damage.js?v=9.9.0"></script>
+<script src="js/v8/37_v97_fire_spread.js?v=9.9.0"></script>
+<script src="js/v8/37_v99_compartments.js?v=9.9.0"></script>
+<script src="js/v8/38_v99_structure.js?v=9.9.0"></script>
+<script src="js/v8/38_vector_ship.js?v=9.9.0"></script>
+<script src="js/v8/38_v952_detach_visual.js?v=9.9.0"></script>
+<script src="js/v8/39_destroyed_cell_cleanup.js?v=9.9.0"></script>
+<script src="js/v8/40_render.js?v=9.9.0"></script>
+<script src="js/v8/40_v99_buoyancy.js?v=9.9.0"></script>
+<script src="js/v8/40_v97_flood_pose.js?v=9.9.0"></script>
+<script src="js/v8/42_v98_heavy_feedback.js?v=9.9.0"></script>
+<script src="js/v8/41_render_v9.js?v=9.9.0"></script>
+<script src="js/v8/45_damage_overlay.js?v=9.9.0"></script>
+<script src="js/v8/46_v952_hud_label.js?v=9.9.0"></script>
+<script src="js/v8/47_v97_status_overlay.js?v=9.9.0"></script>
+<script src="js/v8/50_input_loop.js?v=9.9.0"></script>
+<script src="js/v8/48_v976_attack_control.js?v=9.9.0"></script>
 </body>
 </html>
