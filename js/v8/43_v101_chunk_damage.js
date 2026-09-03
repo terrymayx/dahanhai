@@ -1,10 +1,15 @@
 (function(root){
   'use strict';
 
-  const B=root.V8Battle||null;
+  const G=root.V8ShipGrid||null,B=root.V8Battle||null;
+  if(!G)throw new Error('V10.1 chunk damage requires V8ShipGrid');
+
   const MAX_STRUCTURAL_CHUNKS=18;
   const MIN_SPLIT_CELLS=10;
   const MIN_CHILD_CELLS=4;
+  const COLLISION_MIN_SPEED=16;
+  const COLLISION_COOLDOWN=.34;
+  const MAX_COLLISION_DAMAGE_CELLS=3;
 
   function clamp(v,a,b){return Math.max(a,Math.min(b,Number.isFinite(v)?v:a));}
   function prepareChunk(chunk){
@@ -15,6 +20,7 @@
     if(!Number.isFinite(chunk.durability))chunk.durability=chunk.maxDurability;
     if(!Number.isFinite(chunk.fractureStrength))chunk.fractureStrength=0;
     if(!Number.isFinite(chunk.__v101HitFlash))chunk.__v101HitFlash=0;
+    if(!Number.isFinite(chunk.__v101ShipImpactCooldown))chunk.__v101ShipImpactCooldown=0;
     return chunk;
   }
 
@@ -65,7 +71,7 @@
       let idx=-1,best=-Infinity;
       for(let i=0;i<list.length;i++){
         const c=list[i];if(!c||c.phase==='gone')continue;
-        const score=(Number(c.sinkProgress)||0)*5+(Number(c.age)||0)*.035- Math.max(0,Number(c.mass)||0)*.012;
+        const score=(Number(c.sinkProgress)||0)*5+(Number(c.age)||0)*.035-Math.max(0,Number(c.mass)||0)*.012;
         if(score>best){best=score;idx=i;}
       }
       if(idx<0)break;list[idx].phase='gone';list.splice(idx,1);
@@ -105,9 +111,61 @@
     return {destroyed:chunk.phase==='gone',split:children.length>0,children,durability:chunk.durability};
   }
 
+  function shipVelocity(ship){
+    const physics=ship&&ship.physics||null;
+    return {x:Number(ship&&ship.vx)||Number(physics&&physics.vx)||0,y:Number(ship&&ship.vy)||Number(physics&&physics.vy)||0};
+  }
+
+  function impactCells(ship,wx,wy){
+    if(!ship||!ship.cellMap)return [];
+    const local=typeof G.worldToLocal==='function'?G.worldToLocal(ship,wx,wy):{x:0,y:0};
+    const center=typeof G.localToGrid==='function'?G.localToGrid(ship,local.x,local.y):{gx:Math.floor((ship.gridWidth||1)/2),gy:Math.floor((ship.gridHeight||1)/2)};
+    const candidates=[];
+    for(let gy=Math.max(0,center.gy-2);gy<=Math.min((ship.gridHeight||0)-1,center.gy+2);gy++){
+      for(let gx=Math.max(0,center.gx-2);gx<=Math.min((ship.gridWidth||0)-1,center.gx+2);gx++){
+        const cell=ship.cellMap[gx+','+gy];if(!cell||!cell.alive||cell.detachedGone)continue;
+        const p=typeof G.cellCenterWorld==='function'?G.cellCenterWorld(ship,cell):{x:ship.x,y:ship.y};
+        candidates.push({cell,d:Math.hypot((p.x||0)-wx,(p.y||0)-wy)});
+      }
+    }
+    candidates.sort((a,b)=>a.d-b.d);return candidates.slice(0,MAX_COLLISION_DAMAGE_CELLS).map(x=>x.cell);
+  }
+
+  function onShipCollision(state,chunk,ship,contact){
+    if(!state||!chunk||!ship||ship.state!=='active'||chunk.phase==='gone')return {damaged:0,damage:0};
+    prepareChunk(chunk);contact=contact||{};
+    if(chunk.__v101ShipImpactCooldown>0)return {damaged:0,damage:0,cooldown:true};
+    const sv=shipVelocity(ship),rvx=(Number(chunk.vx)||0)-sv.x,rvy=(Number(chunk.vy)||0)-sv.y,relativeSpeed=Math.hypot(rvx,rvy);
+    const penetration=Math.max(0,Number(contact.penetration)||0),mass=Math.max(.5,Number(chunk.mass)||1);
+    if(relativeSpeed<COLLISION_MIN_SPEED&&penetration<6)return {damaged:0,damage:0,relativeSpeed};
+    let nx=Number(contact.nx),ny=Number(contact.ny);
+    if(!Number.isFinite(nx)||!Number.isFinite(ny)||Math.hypot(nx,ny)<.01){const d=Math.hypot((ship.x||0)-(chunk.x||0),(ship.y||0)-(chunk.y||0))||1;nx=((ship.x||0)-(chunk.x||0))/d;ny=((ship.y||0)-(chunk.y||0))/d;}
+    const reach=Math.min(Number(chunk.hitRadius)||Number(chunk.radius)||24,56),wx=(Number(chunk.x)||0)+nx*reach*.72,wy=(Number(chunk.y)||0)+ny*reach*.72;
+    const cells=impactCells(ship,wx,wy);if(!cells.length)return {damaged:0,damage:0,relativeSpeed};
+    const baseDamage=clamp(Math.round(Math.max(0,relativeSpeed-12)*.24+Math.sqrt(mass)*1.08+penetration*.10),2,24);
+    const severity=clamp((relativeSpeed-COLLISION_MIN_SPEED)/38+Math.sqrt(mass)/20+penetration/70,0,1.5);
+    const count=severity>=1.0?Math.min(3,cells.length):severity>=.48?Math.min(2,cells.length):1;
+    const factors=[1,.52,.30],Cracks=root.V101CrackBranches||null,Fracture=root.V100Fracture||null,Structure=root.V99Structure||null;
+    let damaged=0,destroyed=0;
+    for(let i=0;i<count;i++){
+      const cell=cells[i],damage=Math.max(1,Math.round(baseDamage*factors[i]));
+      const res=G.damageCell(ship,cell,damage);damaged++;
+      const impact={vx:rvx,vy:rvy,power:baseDamage*2.8,grade:baseDamage>=16?'heavy':'penetrated'};
+      if(Cracks&&typeof Cracks.registerImpact==='function')Cracks.registerImpact(ship,cell,impact);
+      else if(Fracture&&typeof Fracture.seedImpact==='function')Fracture.seedImpact(ship,cell,impact);
+      if(res&&res.destroyed){destroyed++;if(Structure&&typeof Structure.queueLocalSolve==='function')Structure.queueLocalSolve(ship,cell);}
+    }
+    chunk.__v101ShipImpactCooldown=COLLISION_COOLDOWN;
+    damageChunk(state,chunk,Math.max(1,baseDamage*.20),{vx:-rvx,vy:-rvy,power:baseDamage});
+    if(state.fx){state.fx.push({k:'impactBurst',x:wx,y:wy,t:0,dur:.18,r:10+Math.min(16,baseDamage*.6)});if(state.fx.length>380)state.fx.splice(0,state.fx.length-380);}
+    return {damaged,destroyed,damage:baseDamage,relativeSpeed};
+  }
+
   function update(state,dt){
     if(!state||!(dt>0))return;
-    for(const chunk of state.structuralChunks||[]){prepareChunk(chunk);chunk.__v101HitFlash=Math.max(0,(chunk.__v101HitFlash||0)-dt);}
+    for(const chunk of state.structuralChunks||[]){
+      prepareChunk(chunk);chunk.__v101HitFlash=Math.max(0,(chunk.__v101HitFlash||0)-dt);chunk.__v101ShipImpactCooldown=Math.max(0,(chunk.__v101ShipImpactCooldown||0)-dt);
+    }
     recycleChunks(state,0);
   }
 
@@ -116,5 +174,5 @@
     B.update=function(state,dt){originalUpdate(state,dt);if(state&&dt>0)update(state,dt);};
   }
 
-  root.V101ChunkDamage={MAX_STRUCTURAL_CHUNKS,MIN_SPLIT_CELLS,prepareChunk,hitTestSegment,damageChunk,splitChunk,recycleChunks,update};
+  root.V101ChunkDamage={MAX_STRUCTURAL_CHUNKS,MIN_SPLIT_CELLS,COLLISION_MIN_SPEED,COLLISION_COOLDOWN,MAX_COLLISION_DAMAGE_CELLS,prepareChunk,hitTestSegment,damageChunk,splitChunk,onShipCollision,recycleChunks,update};
 })(typeof globalThis!=='undefined'?globalThis:this);
