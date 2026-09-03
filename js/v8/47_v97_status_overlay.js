@@ -21,7 +21,7 @@
     const canvas=document.getElementById('cv');if(!canvas)return;const ctx=canvas.getContext('2d');if(!ctx)return;
     ctx.save();worldTransform(ctx,canvas);
 
-    const attack=A&&typeof A.getAttack==='function'?A.getAttack(state):Math.round(state.playerShellAttack||24);
+    const attack=A&&typeof A.getAttack==='function'?A.getAttack(state):Math.round(state.playerShellAttack||72);
     const pf=Math.round(Math.max(0,Math.min(1,state.player&&state.player.floodLevel||0))*100);
     const leaks=(state.player&&state.player.__v97LeakCount)||0;
     ctx.font='700 17px "Microsoft YaHei",sans-serif';ctx.textBaseline='middle';
