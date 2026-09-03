@@ -11,5 +11,9 @@ function makeState(ctx,kind='sloop'){
   p.id='player';e.id='enemy-1';p.state='active';e.state='active';
   return{time:0,state:'playing',paused:false,player:p,enemies:[e],fx:[],texts:[],projectiles:[],kills:0,gold:0};
 }
-function loadBoarding(ctx){load('js/v8/44_v104_boarding.js',ctx);return ctx.V104Boarding||(ctx.DHH&&ctx.DHH.V104Boarding);}
+function loadBoarding(ctx){
+  load('js/v8/44_v104_boarding.js',ctx);
+  load('js/v8/44_v104_nav_invalidation.js',ctx);
+  return ctx.V104Boarding||(ctx.DHH&&ctx.DHH.V104Boarding);
+}
 module.exports={assert,load,makeContext,makeState,loadBoarding};
