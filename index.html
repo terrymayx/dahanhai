@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>大航海时代 V10.1 · 战损表现与物理稳定优化</title>
+<title>大航海时代 V10.2 · 舰炮弹药与真实命中系统</title>
 <style>
   html,body{margin:0;padding:0;background:#0b1e2e;height:100%;overflow:hidden;}
   canvas{display:block;position:fixed;left:0;top:0;touch-action:none;user-select:none;-webkit-user-select:none;}
@@ -14,47 +14,49 @@
 </head>
 <body>
 <canvas id="cv"></canvas>
-<div id="rot">🎮 请横屏体验<br><small style="font-size:14px;opacity:.7">V10.1 · 战损表现与物理稳定优化</small></div>
-<!-- V10.1.0: keeps the 8px foremost-layer collision rule while replacing broad crack spread with bounded timber-aligned main cracks, delaying bending failure through visible yielding/tearing stages, visualizing compartment water, strengthening real low-side immersion feedback, allowing large structural chunks to be re-hit/split, and tracing continuous breach outer boundaries. -->
-<script src="js/v8/00_v8_base.js?v=10.1.0"></script>
-<script src="js/v8/10_ship_grid.js?v=10.1.0"></script>
-<script src="js/v8/11_v94_fine_grid.js?v=10.1.0"></script>
-<script src="js/v8/20_projectiles.js?v=10.1.0"></script>
-<script src="js/v8/30_battle.js?v=10.1.0"></script>
-<script src="js/v8/31_v952_detach_cleanup.js?v=10.1.0"></script>
-<script src="js/v8/32_v954_impact_explosion.js?v=10.1.0"></script>
-<script src="js/v8/33_v972_player_attack.js?v=10.1.0"></script>
-<script src="js/v8/34_v98_armor.js?v=10.1.0"></script>
-<script src="js/v8/34_v99_material.js?v=10.1.0"></script>
-<script src="js/v8/35_v100_fracture.js?v=10.1.0"></script>
-<script src="js/v8/35_v101_crack_branches.js?v=10.1.0"></script>
-<script src="js/v8/35_combat_tuning.js?v=10.1.0"></script>
-<script src="js/v8/36_damage_model.js?v=10.1.0"></script>
-<script src="js/v8/37_component_stress.js?v=10.1.0"></script>
-<script src="js/v8/37_v97_flooding.js?v=10.1.0"></script>
-<script src="js/v8/37_fire_damage.js?v=10.1.0"></script>
-<script src="js/v8/37_v97_fire_spread.js?v=10.1.0"></script>
-<script src="js/v8/37_v99_compartments.js?v=10.1.0"></script>
-<script src="js/v8/38_v99_structure.js?v=10.1.0"></script>
-<script src="js/v8/38_v100_bending.js?v=10.1.0"></script>
-<script src="js/v8/38_vector_ship.js?v=10.1.0"></script>
-<script src="js/v8/38_v952_detach_visual.js?v=10.1.0"></script>
-<script src="js/v8/39_v100_breach_visual.js?v=10.1.0"></script>
-<script src="js/v8/39_v101_compartment_water_visual.js?v=10.1.0"></script>
-<script src="js/v8/38_v101_progressive_break.js?v=10.1.0"></script>
-<script src="js/v8/39_destroyed_cell_cleanup.js?v=10.1.0"></script>
-<script src="js/v8/40_render.js?v=10.1.0"></script>
-<script src="js/v8/40_v99_buoyancy.js?v=10.1.0"></script>
-<script src="js/v8/40_v100_sinking.js?v=10.1.0"></script>
-<script src="js/v8/40_v97_flood_pose.js?v=10.1.0"></script>
-<script src="js/v8/42_v98_heavy_feedback.js?v=10.1.0"></script>
-<script src="js/v8/43_v100_chunk_physics.js?v=10.1.0"></script>
-<script src="js/v8/43_v101_chunk_damage.js?v=10.1.0"></script>
-<script src="js/v8/41_render_v9.js?v=10.1.0"></script>
-<script src="js/v8/45_damage_overlay.js?v=10.1.0"></script>
-<script src="js/v8/46_v952_hud_label.js?v=10.1.0"></script>
-<script src="js/v8/47_v97_status_overlay.js?v=10.1.0"></script>
-<script src="js/v8/50_input_loop.js?v=10.1.0"></script>
-<script src="js/v8/48_v976_attack_control.js?v=10.1.0"></script>
+<div id="rot">🎮 请横屏体验<br><small style="font-size:14px;opacity:.7">V10.2 · 舰炮弹药与真实命中系统</small></div>
+<!-- V10.2.0: keeps the 8px one-shell-one-foremost-layer physics contract while adding instant unlimited player switching between solid, chain and explosive shot. All three share the existing 24-240 cannon attack stat and route through the same armor, impact-angle, crack, bending, flooding, fire and structural-chunk systems. Enemy shells remain standard. -->
+<script src="js/v8/00_v8_base.js?v=10.2.0"></script>
+<script src="js/v8/10_ship_grid.js?v=10.2.0"></script>
+<script src="js/v8/11_v94_fine_grid.js?v=10.2.0"></script>
+<script src="js/v8/20_projectiles.js?v=10.2.0"></script>
+<script src="js/v8/30_battle.js?v=10.2.0"></script>
+<script src="js/v8/31_v952_detach_cleanup.js?v=10.2.0"></script>
+<script src="js/v8/32_v954_impact_explosion.js?v=10.2.0"></script>
+<script src="js/v8/33_v972_player_attack.js?v=10.2.0"></script>
+<script src="js/v8/34_v98_armor.js?v=10.2.0"></script>
+<script src="js/v8/34_v99_material.js?v=10.2.0"></script>
+<script src="js/v8/34_v102_ammo.js?v=10.2.0"></script>
+<script src="js/v8/35_v100_fracture.js?v=10.2.0"></script>
+<script src="js/v8/35_v101_crack_branches.js?v=10.2.0"></script>
+<script src="js/v8/35_combat_tuning.js?v=10.2.0"></script>
+<script src="js/v8/36_damage_model.js?v=10.2.0"></script>
+<script src="js/v8/37_component_stress.js?v=10.2.0"></script>
+<script src="js/v8/37_v97_flooding.js?v=10.2.0"></script>
+<script src="js/v8/37_fire_damage.js?v=10.2.0"></script>
+<script src="js/v8/37_v97_fire_spread.js?v=10.2.0"></script>
+<script src="js/v8/37_v99_compartments.js?v=10.2.0"></script>
+<script src="js/v8/38_v99_structure.js?v=10.2.0"></script>
+<script src="js/v8/38_v100_bending.js?v=10.2.0"></script>
+<script src="js/v8/38_vector_ship.js?v=10.2.0"></script>
+<script src="js/v8/38_v952_detach_visual.js?v=10.2.0"></script>
+<script src="js/v8/39_v100_breach_visual.js?v=10.2.0"></script>
+<script src="js/v8/39_v101_compartment_water_visual.js?v=10.2.0"></script>
+<script src="js/v8/38_v101_progressive_break.js?v=10.2.0"></script>
+<script src="js/v8/39_destroyed_cell_cleanup.js?v=10.2.0"></script>
+<script src="js/v8/40_render.js?v=10.2.0"></script>
+<script src="js/v8/40_v99_buoyancy.js?v=10.2.0"></script>
+<script src="js/v8/40_v100_sinking.js?v=10.2.0"></script>
+<script src="js/v8/40_v97_flood_pose.js?v=10.2.0"></script>
+<script src="js/v8/42_v98_heavy_feedback.js?v=10.2.0"></script>
+<script src="js/v8/43_v100_chunk_physics.js?v=10.2.0"></script>
+<script src="js/v8/43_v101_chunk_damage.js?v=10.2.0"></script>
+<script src="js/v8/41_render_v9.js?v=10.2.0"></script>
+<script src="js/v8/45_damage_overlay.js?v=10.2.0"></script>
+<script src="js/v8/46_v952_hud_label.js?v=10.2.0"></script>
+<script src="js/v8/47_v97_status_overlay.js?v=10.2.0"></script>
+<script src="js/v8/50_input_loop.js?v=10.2.0"></script>
+<script src="js/v8/48_v976_attack_control.js?v=10.2.0"></script>
+<script src="js/v8/49_v102_ammo_control.js?v=10.2.0"></script>
 </body>
 </html>
