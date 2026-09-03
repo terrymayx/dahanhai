@@ -1,0 +1,44 @@
+name: V9.9 Regression
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test-v99:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: V9.9 focused regression
+        shell: bash
+        run: |
+          set -e
+          for t in tests/v9_0_v99*.test.js; do
+            [ -e "$t" ] || continue
+            echo "== $t =="
+            node "$t"
+          done
+      - name: V9.9 changed-module syntax
+        shell: bash
+        run: |
+          set -e
+          for f in \
+            js/v8/20_projectiles.js \
+            js/v8/30_battle.js \
+            js/v8/31_v952_detach_cleanup.js \
+            js/v8/32_v954_impact_explosion.js \
+            js/v8/34_v99_material.js \
+            js/v8/37_v97_flooding.js \
+            js/v8/37_v99_compartments.js \
+            js/v8/38_v99_structure.js \
+            js/v8/40_v97_flood_pose.js \
+            js/v8/40_v99_buoyancy.js \
+            js/v8/41_render_v9.js \
+            js/v8/45_damage_overlay.js \
+            js/v8/47_v97_status_overlay.js; do
+            [ -e "$f" ] || continue
+            node --check "$f"
+          done
