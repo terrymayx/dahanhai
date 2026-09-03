@@ -1,8 +1,11 @@
 const fs=require('fs');
 const assert=require('assert');
 const html=fs.readFileSync('index.html','utf8');
-assert(html.includes('V10.1 · 战损表现与物理稳定优化'),'entry title should be V10.1');
-assert(html.includes('?v=10.1.0'),'entry should use V10.1 cache key');
+assert(/<title>大航海时代 V\d+\.\d+/.test(html),'entry title should expose a current version');
+const scripts=[...html.matchAll(/<script\s+src="([^"]+)"/g)].map(m=>m[1]);
+assert(scripts.length>20,'entry should keep the modular runtime');
+const versions=scripts.map(src=>{const m=src.match(/[?&]v=(\d+\.\d+\.\d+)$/);assert(m,`runtime script must use a semver cache key: ${src}`);return m[1];});
+assert.strictEqual(new Set(versions).size,1,'all runtime scripts must use one consistent cache key');
 for(const file of ['35_v101_crack_branches.js','38_v101_progressive_break.js','39_v101_compartment_water_visual.js','43_v101_chunk_damage.js'])assert(html.includes(file),`entry must load ${file}`);
 assert(html.indexOf('35_v100_fracture.js')<html.indexOf('35_v101_crack_branches.js'),'V101 crack branches must load after V100 fracture');
 assert(html.indexOf('38_v100_bending.js')<html.indexOf('38_v101_progressive_break.js'),'V101 progressive break must load after V100 bending');
