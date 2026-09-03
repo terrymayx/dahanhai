@@ -103,7 +103,10 @@
     }
 
     const old=ship.__v100BendingSections||[];
-    for(let i=0;i<sections.length;i++)sections[i].overloadTime=old[i]&&Number(old[i].overloadTime)||0;
+    for(let i=0;i<sections.length;i++){
+      sections[i].overloadTime=old[i]&&Number(old[i].overloadTime)||0;
+      sections[i].__crackCooldown=old[i]&&Number(old[i].__crackCooldown)||0;
+    }
     ship.__v100BendingSections=sections;
     ship.__v100BendingRevision=Number(ship.__v99TopologyRevision)||0;
     ship.__v100BendingMaterialRevision=Number(ship.__v99MaterialRevision)||0;
@@ -133,7 +136,8 @@
     const maxTargets=Math.max(2,Math.min(8,Math.ceil(targets.length*.55)));
     for(const cell of targets.slice(0,maxTargets)){
       const remaining=Math.max(0,Number(cell.hp)||0);
-      const damage=Math.max(4,remaining*(cell.type==='beam'||cell.type==='core'?.72:.58));
+      const structural=(cell.type==='beam'||cell.type==='core');
+      const damage=Math.max(4,remaining*(structural ? .72 : .58));
       const res=G.damageCell(ship,cell,damage);
       if(res&&res.destroyed)broken.push(cell);
     }
@@ -152,7 +156,7 @@
         const weak=sec.members.slice().sort((a,b)=>((b.crackDepth||0)+(b.fatigue||0))-((a.crackDepth||0)+(a.fatigue||0))).slice(0,2);
         for(const cell of weak){cell.fatigue=clamp((cell.fatigue||0)+Math.min(.0025,(ratio-BEND_FATIGUE_RATIO)*.0018),0,1);changed.push(cell);}
       }
-      if(ratio>BEND_CRACK_RATIO&&F&&sec.crackSeed&&typeof F.seedImpact==='function'&&sec.__crackCooldown<=0){
+      if(ratio>BEND_CRACK_RATIO&&F&&sec.crackSeed&&typeof F.seedImpact==='function'&&(!Number.isFinite(sec.__crackCooldown)||sec.__crackCooldown<=0)){
         F.seedImpact(ship,sec.crackSeed,{vx:0,vy:0,power:24+(ratio-1)*80,grade:ratio>BEND_BREAK_RATIO?'heavy':'penetrated'});
         sec.__crackCooldown=.7;
       }
