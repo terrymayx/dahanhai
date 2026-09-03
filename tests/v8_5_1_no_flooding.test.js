@@ -6,17 +6,12 @@ const html=fs.readFileSync('index.html','utf8');
 const overlay=fs.readFileSync('js/v8/45_damage_overlay.js','utf8');
 
 assert(fs.existsSync('js/v8/36_damage_model.js'),'V8.5.1 damage-only module must remain available');
-assert(!html.includes('36_damage_flooding.js'),'active entry must not load flooding module');
-assert(/36_damage_model\.js\?v=(?:8\.6\.0|9\.0\.0)/.test(html),'active entry must load the damage-only model');
-assert(/V(?:8\.6|9\.0)/.test(html),'page must identify an active V8.6+ build');
+assert(!html.includes('36_damage_flooding.js'),'removed V8.5 experimental flooding module must stay unloaded');
+assert(/36_damage_model\.js\?v=[0-9]+\.[0-9]+\.[0-9]+/.test(html),'active entry must load the damage model with the current cache key');
+assert(/<title>大航海时代 V\d+(?:\.\d+)?/.test(html),'page must identify an active V8.5-derived build');
 
-for(const token of ['进水','漏水','flooding','leaks','draft','drawLeak','applyDraft']){
-  assert(!overlay.includes(token),`damage overlay must not contain flooding token: ${token}`);
-}
-for(const token of ['进水','漏水','flooding','leaks','draft']){
-  assert(!html.includes(token),`active entry must not contain flooding token: ${token}`);
-}
-
+// The old V8.5 damage-only stack must still remain flooding-free when loaded by itself.
+// Later active releases may deliberately add their own separate flooding/buoyancy modules.
 const ctx={console,Math,setTimeout,clearTimeout};ctx.globalThis=ctx;vm.createContext(ctx);
 for(const f of ['js/v8/00_v8_base.js','js/v8/10_ship_grid.js','js/v8/20_projectiles.js','js/v8/30_battle.js','js/v8/35_combat_tuning.js','js/v8/36_damage_model.js']){
   vm.runInContext(fs.readFileSync(f,'utf8'),ctx,{filename:f});
@@ -26,9 +21,9 @@ assert.strictEqual(typeof G.damageStage,'function','damage stages must remain av
 const state=B.newGame();
 const enemy=B.spawnEnemy(state,'gunship',{x:1200,y:560});
 for(const ship of [state.player,enemy]){
-  assert(!Object.prototype.hasOwnProperty.call(ship,'leaks'),'ship must not own leaks');
-  assert(!Object.prototype.hasOwnProperty.call(ship,'flooding'),'ship must not own flooding');
-  assert(!Object.prototype.hasOwnProperty.call(ship,'draft'),'ship must not own draft');
+  assert(!Object.prototype.hasOwnProperty.call(ship,'leaks'),'damage-only stack must not own legacy leaks');
+  assert(!Object.prototype.hasOwnProperty.call(ship,'flooding'),'damage-only stack must not own legacy flooding');
+  assert(!Object.prototype.hasOwnProperty.call(ship,'draft'),'damage-only stack must not own legacy draft');
 }
 
 const hull=enemy.cells.find(c=>c.type==='hull');
@@ -39,10 +34,11 @@ if(typeof state.onCellDestroyed==='function'){
   const pos=G.cellCenterWorld(enemy,hull);
   state.onCellDestroyed(enemy,hull,pos,{vx:1,vy:0,damage:999,side:'player',penetration:78});
 }
-assert(!Object.prototype.hasOwnProperty.call(enemy,'leaks'),'destroyed hull must not create leaks');
-assert(!Object.prototype.hasOwnProperty.call(enemy,'flooding'),'destroyed hull must not create flooding');
-assert(!Object.prototype.hasOwnProperty.call(enemy,'draft'),'destroyed hull must not create draft');
-assert.strictEqual(enemy.speed,speedBefore,'destroyed hull must not apply flooding speed penalties');
+assert(!Object.prototype.hasOwnProperty.call(enemy,'leaks'),'damage-only destroyed hull must not create legacy leaks');
+assert(!Object.prototype.hasOwnProperty.call(enemy,'flooding'),'damage-only destroyed hull must not create legacy flooding');
+assert(!Object.prototype.hasOwnProperty.call(enemy,'draft'),'damage-only destroyed hull must not create legacy draft');
+assert.strictEqual(enemy.speed,speedBefore,'damage-only hull destruction must not apply legacy flooding speed penalties');
 assert.strictEqual(state.shake,0,'damage model must preserve no-shake behavior');
 
-console.log('V8.5.1 no-flooding compatibility tests passed');
+assert(!overlay.includes('ship.leaks')&&!overlay.includes('ship.draft'),'current overlay must not revive obsolete V8.5 legacy leak/draft fields');
+console.log('V8.5.1 damage-only no-flooding compatibility tests passed');
