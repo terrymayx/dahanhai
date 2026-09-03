@@ -66,6 +66,24 @@
     ctx.globalAlpha=1;
   }
 
+  function drawStructuralChunks(state){
+    for(const chunk of state.structuralChunks||[]){
+      if(!chunk||chunk.phase==='gone')continue;
+      const sp=Math.max(0,Math.min(1,chunk.sinkProgress||0));
+      const bob=Math.sin((chunk.age||0)*2.3+(chunk.mass||1)*.17)*(1-sp)*2.2;
+      const drawY=(chunk.y||0)+bob+sp*18;
+      const cells=chunk.cells||[],extent=Math.max(28,Math.min(130,22+Math.sqrt(cells.length)*12));
+      ctx.save();ctx.globalAlpha=Math.max(.06,.38-sp*.22);ctx.strokeStyle='#e8fbff';ctx.lineWidth=2.5;ctx.beginPath();ctx.ellipse(chunk.x,drawY+8,extent,Math.max(7,extent*.24),0,0,Math.PI*2);ctx.stroke();ctx.restore();
+      ctx.save();ctx.translate(chunk.x,drawY);ctx.rotate(chunk.rotation||0);ctx.globalAlpha=Math.max(.05,1-sp*.88);
+      if(typeof Vector.drawDebrisClusterLocal==='function')Vector.drawDebrisClusterLocal(ctx,chunk);
+      else{
+        const s=chunk.cellSize||8;
+        for(const cell of cells){ctx.fillStyle=cell.type==='deck'?(chunk.deckColor||'#b07155'):(chunk.baseColor||'#714128');ctx.fillRect(cell.x-s/2,cell.y-s/2,s,s);}
+      }
+      ctx.restore();ctx.globalAlpha=1;
+    }
+  }
+
   function drawProjectiles(state){
     for(const p of state.projectiles||[]){
       for(const t of p.trail||[]){const life=Math.max(0,1-(t.t||0)/(t.dur||.28));ctx.save();ctx.globalAlpha=.20*life;ctx.fillStyle='#eee7d7';ctx.beginPath();ctx.arc(t.x,t.y-(t.z||0),2+(1-life)*3.5,0,Math.PI*2);ctx.fill();ctx.restore();}
@@ -114,8 +132,8 @@
   }
 
   function draw(state){
-    if(!ctx||!state)return;beginWorld();drawSea(state);drawShip(state.player,state);for(const ship of state.enemies||[])drawShip(ship,state);drawDebrisClusters(state);drawProjectiles(state);drawFx(state);drawAim(state);drawHud(state);
+    if(!ctx||!state)return;beginWorld();drawSea(state);drawShip(state.player,state);for(const ship of state.enemies||[])drawShip(ship,state);drawDebrisClusters(state);drawStructuralChunks(state);drawProjectiles(state);drawFx(state);drawAim(state);drawHud(state);
   }
 
-  root.V8Render={init,resize,draw,drawShip,drawDebrisClusters,drawAim,screenToWorld,shipBounds,shipVisualPose};
+  root.V8Render={init,resize,draw,drawShip,drawDebrisClusters,drawStructuralChunks,drawAim,screenToWorld,shipBounds,shipVisualPose};
 })(typeof globalThis!=='undefined'?globalThis:this);
