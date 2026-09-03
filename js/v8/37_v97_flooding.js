@@ -78,8 +78,9 @@
     const wasFocused=state.focus===ship;
     ship.state='sink';ship.sinkT=0;state.gold+=ship.gold||0;state.kills++;
     if(state.aim&&state.aim.shipId===ship.id)state.aim=null;
-    if(wasFocused&&typeof B.setFocus==='function')B.setFocus(state,null);
-    if(state.salvo&&state.salvo.targetId===ship.id)state.salvo=null;
+    const next=(typeof B.targetForPlayer==='function')?B.targetForPlayer(state):null;
+    if(wasFocused&&typeof B.setFocus==='function')B.setFocus(state,next);
+    if(state.salvo&&state.salvo.targetId===ship.id){if(next)state.salvo.targetId=next.id;else state.salvo=null;}
     if(state.fx){
       state.fx.push({k:'waterSplash',x:ship.x,y:ship.y,t:0,dur:.7,r:58});
       state.fx.push({k:'waterRing',x:ship.x,y:ship.y,t:0,dur:1.0,r:72});
@@ -105,8 +106,8 @@
 
     if(ship.side==='enemy'&&ship.state==='active'){
       const base=ship.baseSpeed||ship.speed||0;
-      const mast=Number.isFinite(ship.mastEfficiency)?ship.mastEfficiency:(ship.mastAlive===false?.75:1);
-      const rudder=Number.isFinite(ship.rudderEfficiency)?ship.rudderEfficiency:(ship.rudderAlive===false?.55:1);
+      const mast=Number.isFinite(ship.mastEfficiency)?ship.mastEfficiency:(ship.mastAlive===false ? .75 : 1);
+      const rudder=Number.isFinite(ship.rudderEfficiency)?ship.rudderEfficiency:(ship.rudderAlive===false ? .55 : 1);
       if(base>0)ship.speed=Math.max(base*.22,base*mast*rudder*ship.floodSpeedMultiplier);
     }
 
