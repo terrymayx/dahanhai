@@ -2,10 +2,10 @@
   'use strict';
 
   const G=root.V8ShipGrid;
-  if(!G)throw new Error('V9.6 performance grid requires V8ShipGrid');
+  if(!G)throw new Error('V9.7 performance grid requires V8ShipGrid');
 
-  // V9.6: return to the proven 8px physical grid. Visual smoothness is handled
-  // by cached vector/damage masks instead of multiplying physics cells.
+  // V9.7 keeps the proven 8px physical grid. Visual detail comes from smooth
+  // cached vector envelopes and irregular damage masks instead of more cells.
   const specs=G.SPECS||{};
   const targets={
     player:{gridWidth:40,gridHeight:68,cellSize:8},
@@ -26,5 +26,5 @@
   const resistance=G.MATERIAL_RESISTANCE||{};
   Object.assign(resistance,{hull:42,deck:30,beam:64,core:64,powder:22,rudder:34,mast:34,cannon:34});
 
-  root.V94FineGrid={active:true,version:'9.6.0',mode:'8px-physics-cached-visuals',targets,cellHp:hp,materialResistance:resistance};
+  root.V94FineGrid={active:true,version:'9.7.0',mode:'8px-physics-smooth-cached-damage',targets,cellHp:hp,materialResistance:resistance};
 })(typeof globalThis!=='undefined'?globalThis:this);
