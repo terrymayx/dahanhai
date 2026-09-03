@@ -2,67 +2,84 @@
   'use strict';
 
   const G=root.V8ShipGrid,V=root.V9VectorShip;
-  if(!G||!V||typeof V.drawShipLocal!=='function')throw new Error('V9.5.7 live support visual requires grid and vector ship');
+  if(!G||!V||typeof V.drawShipLocal!=='function')throw new Error('V9.6 cached support visual requires grid and vector ship');
 
-  const originalDrawShipLocal=V.drawShipLocal;
-  const cache=new WeakMap();
+  const baseDrawShipLocal=V.drawShipLocal;
+  const caches=new WeakMap();
 
-  function makeLayer(ship){
-    const p=V.hullProfile(ship),pad=40;
-    const w=Math.ceil((p.orientation==='vertical'?p.beam:p.length)+pad*2);
-    const h=Math.ceil((p.orientation==='vertical'?p.length:p.beam)+pad*2);
-    let s=cache.get(ship);
-    if(s&&s.w===w&&s.h===h)return s;
+  function createCanvas(w,h){
     let canvas=null;
     if(typeof OffscreenCanvas!=='undefined')canvas=new OffscreenCanvas(w,h);
     else if(typeof document!=='undefined'){canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;}
-    if(!canvas)return null;
-    if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;
-    s={canvas,ctx:canvas.getContext('2d'),w,h};cache.set(ship,s);return s;
+    return canvas;
   }
 
-  // V9.5.7: visible hull material is still tied to live physical cells, but each
-  // support footprint is smaller and much rounder. Combined with the new 6px grid,
-  // the union reads like a smooth hull instead of a staircase of square pixels.
-  function applyLiveSupportMask(ctx,ship){
-    const cs=ship.cellSize||6;
-    const live=(ship.cells||[]).filter(c=>c.alive&&!c.detachedGone);
-    if(!live.length){ctx.clearRect(-5000,-5000,10000,10000);return;}
+  function getCache(ship){
+    const p=V.hullProfile(ship),pad=46;
+    const w=Math.ceil((p.orientation==='vertical'?p.beam:p.length)+pad*2);
+    const h=Math.ceil((p.orientation==='vertical'?p.length:p.beam)+pad*2);
+    let s=caches.get(ship);
+    if(s&&s.w===w&&s.h===h)return s;
+    const canvas=createCanvas(w,h),mask=createCanvas(w,h);
+    if(!canvas||!mask)return null;
+    s={canvas,ctx:canvas.getContext('2d'),mask,maskCtx:mask.getContext('2d'),w,h,revision:-1,ready:false,rebuilds:0};
+    caches.set(ship,s);return s;
+  }
 
-    ctx.save();
-    ctx.globalCompositeOperation='destination-in';
-    ctx.fillStyle='#000';
-    ctx.beginPath();
-    for(const cell of live){
+  function buildSmoothSupportMask(s,ship){
+    const m=s.maskCtx,cs=ship.cellSize||8;
+    m.setTransform(1,0,0,1,0,0);m.clearRect(0,0,s.w,s.h);
+    m.save();m.translate(s.w/2,s.h/2);
+    m.fillStyle='#000';
+    // A large overlapping circular footprint produces a soft continuous envelope,
+    // while still disappearing wherever the physical cells are actually gone.
+    m.beginPath();
+    const radius=cs*.96;
+    for(const cell of ship.cells||[]){
+      if(!cell.alive||cell.detachedGone)continue;
       const p=G.cellCenterLocal(ship,cell);
-      const half=cs*.72;
-      const radius=cs*.52;
-      ctx.roundRect(p.x-half,p.y-half,half*2,half*2,radius);
+      m.moveTo(p.x+radius,p.y);m.arc(p.x,p.y,radius,0,Math.PI*2);
     }
-    ctx.fill();
-    ctx.restore();
+    m.fill();
+    m.restore();
   }
 
-  function redrawAboveHullDetails(ctx,ship){
-    if(typeof V.drawMastsAndSails==='function')V.drawMastsAndSails(ctx,ship);
-    if(typeof V.drawCannons==='function')V.drawCannons(ctx,ship);
-    if(typeof V.drawDamageMarks==='function')V.drawDamageMarks(ctx,ship);
+  function rebuild(ship,state,s){
+    const c=s.ctx;
+    c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,s.w,s.h);
+    c.save();c.translate(s.w/2,s.h/2);
+    const drawn=baseDrawShipLocal(c,ship,state);
+    c.restore();
+    if(drawn===false)return false;
+
+    buildSmoothSupportMask(s,ship);
+    c.save();c.globalCompositeOperation='destination-in';c.drawImage(s.mask,0,0);c.restore();
+
+    // Small elevated components may legally extend beyond the hull envelope.
+    c.save();c.translate(s.w/2,s.h/2);
+    if(typeof V.drawMastsAndSails==='function')V.drawMastsAndSails(c,ship);
+    if(typeof V.drawCannons==='function')V.drawCannons(c,ship);
+    c.restore();
+
+    s.revision=ship.__v96DamageRevision||0;
+    s.ready=true;s.rebuilds++;
+    ship.__v96VisualDirty=false;
+    return true;
   }
 
   V.drawShipLocal=function(targetCtx,ship,state){
-    const s=makeLayer(ship);
-    if(!s)return originalDrawShipLocal(targetCtx,ship,state);
-    const c=s.ctx;c.clearRect(0,0,s.w,s.h);c.save();c.translate(s.w/2,s.h/2);
-    const drawn=originalDrawShipLocal(c,ship,state);
-    if(drawn!==false){
-      applyLiveSupportMask(c,ship);
-      redrawAboveHullDetails(c,ship);
+    const s=getCache(ship);
+    if(!s)return baseDrawShipLocal(targetCtx,ship,state);
+    const revision=ship.__v96DamageRevision||0;
+    if(!s.ready||ship.__v96VisualDirty||s.revision!==revision){
+      if(rebuild(ship,state,s)===false)return false;
     }
-    c.restore();
     targetCtx.drawImage(s.canvas,-s.w/2,-s.h/2);
-    return drawn;
+    return true;
   };
 
-  V.applyLiveSupportMask=applyLiveSupportMask;
-  V.eraseDetachedFragments=function(ctx,ship){applyLiveSupportMask(ctx,ship);};
+  V.markVisualDirty=function(ship){if(ship){ship.__v96VisualDirty=true;ship.__v96DamageRevision=(ship.__v96DamageRevision||0)+1;}};
+  V.eraseDetachedFragments=function(ctx,ship){V.markVisualDirty(ship);};
+  V.getVisualCacheStats=function(ship){const s=caches.get(ship);return s?{ready:s.ready,revision:s.revision,rebuilds:s.rebuilds,w:s.w,h:s.h}:null;};
+  root.V96CachedHull={active:true,caches,getCache,rebuild};
 })(typeof globalThis!=='undefined'?globalThis:this);
