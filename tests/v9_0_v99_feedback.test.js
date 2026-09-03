@@ -1,0 +1,14 @@
+'use strict';
+const fs=require('fs');
+const assert=require('assert');
+const overlay='js/v8/45_damage_overlay.js';
+const status='js/v8/47_v97_status_overlay.js';
+const render='js/v8/41_render_v9.js';
+for(const f of [overlay,status,render])assert.ok(fs.existsSync(f),f+' should exist');
+const o=fs.readFileSync(overlay,'utf8');
+const s=fs.readFileSync(status,'utf8');
+const r=fs.readFileSync(render,'utf8');
+assert.ok(o.includes('fracture')||o.includes('armorHp'),'damage overlay should visualize V9.9 material wear');
+assert.ok(s.includes('局部装甲')&&s.includes('入射角')&&s.includes('等效装甲'),'HUD should show local armor, impact angle, and effective armor');
+assert.ok(r.includes('structuralChunks'),'renderer should support large detached structural chunks');
+console.log('V9.9 physical destruction feedback regression passed');
