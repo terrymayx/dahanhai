@@ -8,5 +8,6 @@ assert(src.includes('MAX_ACTIVE_BRANCHES=32'),'branch cap must be 32 per ship');
 assert(src.includes('BRANCH_TICK'),'branch propagation must be tick-limited');
 assert(src.includes('__v101CrackBranches'),'ship must cache active crack branches');
 assert(src.includes('NEIGHBORS8'),'branch propagation should inspect endpoint neighborhood only');
+assert(src.includes('const merged=normalize'),'merged branch direction must be normalized once before writing both axes');
 assert(v100.includes('V101CrackBranches'),'V100 broad propagation should yield to V101 when loaded');
 console.log('V10.1 crack branch contract passed');
