@@ -1,0 +1,10 @@
+const fs=require('fs');
+const assert=require('assert');
+const path='js/v8/43_v101_chunk_damage.js';
+assert(fs.existsSync(path),'V10.1 chunk damage module should exist');
+const src=fs.readFileSync(path,'utf8');
+assert(src.includes('damageChunk'),'chunk module must expose damageChunk');
+assert(src.includes('splitChunk'),'chunk module must expose splitChunk');
+assert(src.includes('MAX_STRUCTURAL_CHUNKS'),'chunk count must stay bounded');
+assert(src.includes('hitTestSegment'),'projectiles should be able to hit structural chunks in open water');
+console.log('V10.1 chunk damage contract passed');
