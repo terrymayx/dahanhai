@@ -90,6 +90,23 @@
     return {armorMax:cell.armorMax,armorHp:cell.armorHp,armorNow,normal,impactCos,impactAngle,effectiveArmor,ratio,grade,ricochet,multiplier,effectiveDamage,armorLoss,fractureGain,fatigueGain,attackPower:attack,rawDamage:raw};
   }
 
+  function resolveSplash(ship,cell,rawDamage,attackPower){
+    prepareCell(ship,cell);
+    const armorNow=currentArmor(ship,cell);
+    const attack=Math.max(0,Number(attackPower)||Number(rawDamage)||0);
+    const raw=Math.max(0,Number(rawDamage)||0);
+    const effectiveArmor=Math.max(1,armorNow*.88);
+    const ratio=effectiveArmor>0?attack/effectiveArmor:99;
+    const grade=gradeFor(ratio);
+    const multiplier=damageMultiplier(ratio)*.92;
+    const effectiveDamage=Math.max(.1,raw*multiplier);
+    const wear=(MATERIAL_WEAR[cell.type]||.18)*.36;
+    const armorLoss=Math.min(cell.armorHp,attack*wear*(grade==='heavy'?1.18:grade==='penetrated'?1:.72));
+    const fractureGain=clamp(.008+Math.max(0,ratio-.7)*.035,0,.09);
+    const fatigueGain=clamp(.012+Math.min(2,ratio)*.018,0,.07);
+    return {armorMax:cell.armorMax,armorHp:cell.armorHp,armorNow,effectiveArmor,ratio,grade,ricochet:false,multiplier,effectiveDamage,armorLoss,fractureGain,fatigueGain,attackPower:attack,rawDamage:raw,impactCos:1,impactAngle:0,normal:{x:0,y:0}};
+  }
+
   function applyImpactState(ship,cell,result){
     if(!cell||!result)return cell;
     prepareCell(ship,cell);
@@ -120,5 +137,5 @@
 
   function gradeLabel(grade){return GRADE_LABELS[grade]||String(grade||'');}
 
-  root.V99Material={MATERIAL_WEAR,STRUCTURAL_BASE,GRADE_LABELS,prepareCell,prepareShip,surfaceNormal,currentArmor,resolveDirect,applyImpactState,addBlastFatigue,gradeLabel};
+  root.V99Material={MATERIAL_WEAR,STRUCTURAL_BASE,GRADE_LABELS,prepareCell,prepareShip,surfaceNormal,currentArmor,resolveDirect,resolveSplash,applyImpactState,addBlastFatigue,gradeLabel};
 })(typeof globalThis!=='undefined'?globalThis:this);
