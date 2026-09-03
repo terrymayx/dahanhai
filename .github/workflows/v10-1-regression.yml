@@ -1,0 +1,51 @@
+name: V10.1 Regression
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test-v101:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: V10.1 focused regression
+        shell: bash
+        run: |
+          set -e
+          for t in \
+            tests/v10_1_crack_branches.test.js \
+            tests/v10_1_progressive_break.test.js \
+            tests/v10_1_water_visual.test.js \
+            tests/v10_1_chunk_damage.test.js \
+            tests/v10_1_breach_visual.test.js \
+            tests/v10_1_hud.test.js \
+            tests/v10_1_integration.test.js; do
+            echo "== $t =="
+            node "$t"
+          done
+      - name: V10.1 changed-module syntax
+        shell: bash
+        run: |
+          set -e
+          for f in \
+            js/v8/20_projectiles.js \
+            js/v8/32_v954_impact_explosion.js \
+            js/v8/35_v101_crack_branches.js \
+            js/v8/37_v99_compartments.js \
+            js/v8/38_v100_bending.js \
+            js/v8/38_v101_progressive_break.js \
+            js/v8/39_v100_breach_visual.js \
+            js/v8/39_v101_compartment_water_visual.js \
+            js/v8/40_v100_sinking.js \
+            js/v8/41_render_v9.js \
+            js/v8/43_v100_chunk_physics.js \
+            js/v8/43_v101_chunk_damage.js \
+            js/v8/46_v952_hud_label.js \
+            js/v8/47_v97_status_overlay.js; do
+            [ -e "$f" ] || continue
+            node --check "$f"
+          done
