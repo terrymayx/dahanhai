@@ -100,6 +100,7 @@
       }
       processed.push({cell:c,ratio:item.ratio,destroyed});
     }
+    if(processed.length)ship.__v99MaterialRevision=(ship.__v99MaterialRevision||0)+1;
     return processed;
   }
 
@@ -117,6 +118,24 @@
     const item=ship.__v99StructureQueue.shift();
     const center=(ship.cellMap&&ship.cellMap[item.key])||{gx:item.gx,gy:item.gy};
     return solveLocal(ship,center);
+  }
+
+  function applyPowderFatigue(ship,cell){
+    if(!ship||!cell)return;
+    const M=root.V99Material||null;
+    let queued=0;
+    for(const target of localCells(ship,cell,3)){
+      if(!STRUCTURAL_TYPES.has(target.type))continue;
+      const d=Math.hypot(target.gx-cell.gx,target.gy-cell.gy);
+      if(d>3.05)continue;
+      const power=Math.max(.25,2.4-d*.58);
+      if(M&&typeof M.addBlastFatigue==='function')M.addBlastFatigue(ship,target,power);
+      else{
+        target.fracture=clamp((Number(target.fracture)||0)+power*.055,0,1);
+        target.fatigue=clamp((Number(target.fatigue)||0)+power*.045,0,1);
+      }
+      if(queued<3){queueLocalSolve(ship,target);queued++;}
+    }
   }
 
   function massOf(cells){let m=0;for(const c of cells||[])m+=cellWeight(c);return m;}
@@ -173,8 +192,7 @@
     chunk.age=(chunk.age||0)+dt;
     const frames=dt*60;
     const drag=Math.pow(.965,frames);
-    chunk.vx=(chunk.vx||0)*drag;
-    chunk.vy=(chunk.vy||0)*drag;
+    chunk.vx=(chunk.vx||0)*drag;chunk.vy=(chunk.vy||0)*drag;
     chunk.angularVelocity=(chunk.angularVelocity||0)*Math.pow(.975,frames);
     const buoyancy=clamp(Number(chunk.buoyancy)||0,0,1)*(1-clamp(Number(chunk.water)||0,0,1));
     chunk.water=clamp((chunk.water||0)+dt*(.018+.026*(1-buoyancy)),0,1);
@@ -190,11 +208,8 @@
     if(!Array.isArray(state.structuralChunks))state.structuralChunks=[];
     const ships=[state.player,...(state.enemies||[])];
     for(const ship of ships){
-      if(!ship)continue;prepareShip(ship);
-      processQueue(ship);
-      for(const chunk of ship.structuralChunks){
-        if(!chunk.__v99Globalized){chunk.__v99Globalized=true;state.structuralChunks.push(chunk);}
-      }
+      if(!ship)continue;prepareShip(ship);processQueue(ship);
+      for(const chunk of ship.structuralChunks){if(!chunk.__v99Globalized){chunk.__v99Globalized=true;state.structuralChunks.push(chunk);}}
     }
     if(state.structuralChunks.length>MAX_GLOBAL_CHUNKS)state.structuralChunks.splice(0,state.structuralChunks.length-MAX_GLOBAL_CHUNKS);
     for(const chunk of state.structuralChunks)updateChunk(chunk,dt);
@@ -202,11 +217,21 @@
   }
 
   const B=root.V8Battle;
-  if(B&&typeof B.update==='function'&&!B.__v99StructureWrapped){
+  if(B&&!B.__v99StructureWrapped){
     B.__v99StructureWrapped=true;
-    const originalUpdate=B.update;
-    B.update=function(state,dt){originalUpdate(state,dt);if(state&&dt>0)updateChunks(state,dt);};
+    const originalNewGame=typeof B.newGame==='function'?B.newGame:null;
+    const originalUpdate=typeof B.update==='function'?B.update:null;
+    if(originalNewGame)B.newGame=function(){
+      const state=originalNewGame();
+      const originalDestroyed=state&&state.onCellDestroyed;
+      if(state)state.onCellDestroyed=function(ship,cell,pos,p){
+        if(typeof originalDestroyed==='function')originalDestroyed(ship,cell,pos,p);
+        if(cell&&cell.type==='powder')applyPowderFatigue(ship,cell);
+      };
+      return state;
+    };
+    if(originalUpdate)B.update=function(state,dt){originalUpdate(state,dt);if(state&&dt>0)updateChunks(state,dt);};
   }
 
-  root.V99Structure={LOCAL_RADIUS,MAX_OVERLOAD_NODES,LARGE_CHUNK_RATIO,MAX_GLOBAL_CHUNKS,prepareShip,structuralCapacityFor,localCells,solveLocal,queueLocalSolve,processQueue,classifyDetached,updateChunk,updateChunks};
+  root.V99Structure={LOCAL_RADIUS,MAX_OVERLOAD_NODES,LARGE_CHUNK_RATIO,MAX_GLOBAL_CHUNKS,prepareShip,structuralCapacityFor,localCells,solveLocal,queueLocalSolve,processQueue,applyPowderFatigue,classifyDetached,updateChunk,updateChunks};
 })(typeof globalThis!=='undefined'?globalThis:this);
