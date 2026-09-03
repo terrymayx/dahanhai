@@ -1,7 +1,7 @@
 (function(root){
   'use strict';
-  const C=root.V8Config,R=root.V8Render,V=root.V9VectorShip,A=root.V972PlayerAttack||null,E=root.V954ImpactExplosion||null;
-  if(!C||!R||!V||typeof R.draw!=='function')return;
+  const C=root.V8Config,R=root.V8Render,V=root.V9VectorShip,G=root.V8ShipGrid,A=root.V972PlayerAttack||null,E=root.V954ImpactExplosion||null,Armor=root.V98Armor||null;
+  if(!C||!R||!V||!G||typeof R.draw!=='function')return;
   const originalDraw=R.draw;
 
   function worldTransform(ctx,canvas){
@@ -14,6 +14,32 @@
     ctx.fillStyle='rgba(5,35,52,.84)';ctx.beginPath();ctx.roundRect(x-w/2,y-14,w,28,8);ctx.fill();
     ctx.strokeStyle='rgba(145,225,255,.55)';ctx.lineWidth=1;ctx.stroke();
     ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#d9f7ff';ctx.fillText(text,x,y);
+  }
+
+  function activeTarget(state){
+    if(state&&state.focus&&state.focus.state==='active')return state.focus;
+    if(A&&typeof A.resolveTarget==='function')return A.resolveTarget(state);
+    return null;
+  }
+
+  function targetPreviewCell(state,target){
+    if(!target)return null;
+    const aim=state&&state.aim;
+    if(aim&&aim.shipId===target.id&&Number.isFinite(aim.lx)&&Number.isFinite(aim.ly)){
+      const g=G.localToGrid(target,aim.lx,aim.ly);
+      const aimed=target.cellMap&&target.cellMap[g.gx+','+g.gy];
+      if(aimed&&aimed.alive&&!aimed.detachedGone)return aimed;
+    }
+    for(const cell of target.cells||[])if(cell.alive&&!cell.detachedGone&&cell.type==='hull')return cell;
+    for(const cell of target.cells||[])if(cell.alive&&!cell.detachedGone)return cell;
+    return {type:'hull'};
+  }
+
+  function gradeColor(grade){
+    if(grade==='heavy')return '#ffb45f';
+    if(grade==='penetrated')return '#ffe17a';
+    if(grade==='resisted')return '#bfeaff';
+    return '#d7e0e7';
   }
 
   function drawStatus(state){
@@ -31,6 +57,15 @@
     ctx.textAlign='left';ctx.fillStyle='#ffd65a';
     ctx.fillText(`炮攻 ${attack} ${auto?'AUTO':'手动'} · 爆幅 ${radiusScale.toFixed(1)}×`,250,96);
 
+    const target=activeTarget(state);
+    if(target&&Armor&&typeof Armor.resolveDirectHit==='function'){
+      const cell=targetPreviewCell(state,target)||{type:'hull'};
+      const preview=Armor.resolveDirectHit(target,cell,attack);
+      const label=typeof Armor.gradeLabel==='function'?Armor.gradeLabel(preview.grade):preview.grade;
+      ctx.fillStyle=gradeColor(preview.grade);
+      ctx.fillText(`目标装甲 ${Math.round(preview.armor)} · 预计 ${label}`,250,120);
+    }
+
     ctx.textAlign='right';ctx.fillStyle=pf>=70?'#ffd08a':pf>=35?'#bfeaff':'#dff7ff';
     ctx.fillText(`进水 ${pf}%${leaks?` · 漏点 ${leaks}`:''}`,650,96);
 
@@ -45,5 +80,5 @@
   }
 
   R.draw=function(state){originalDraw(state);drawStatus(state);};
-  root.V97StatusOverlay={drawStatus};
+  root.V97StatusOverlay={drawStatus,targetPreviewCell,activeTarget};
 })(typeof globalThis!=='undefined'?globalThis:this);
