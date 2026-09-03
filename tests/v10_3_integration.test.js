@@ -1,7 +1,12 @@
 const fs=require('fs'),assert=require('assert');
 const html=fs.readFileSync('index.html','utf8');
-assert(html.includes('V10.3 · 真实舷炮齐射系统'),'entry title should be V10.3 real broadside');
-const versions=[...html.matchAll(/<script src="[^"]+\?v=([^"]+)"/g)].map(m=>m[1]);assert(versions.length>10,'expected core scripts');assert(new Set(versions).size===1&&versions[0]==='10.3.0','all runtime scripts must use cache key 10.3.0');
+assert(/<title>大航海时代 V\d+\.\d+/.test(html),'entry title should expose a current Dahanhai version');
+const versions=[...html.matchAll(/<script src="[^"]+\?v=([^"]+)"/g)].map(m=>m[1]);
+assert(versions.length>10,'expected core scripts');
+assert(new Set(versions).size===1,'all runtime scripts must use one unified cache key');
+const parts=versions[0].split('.').map(Number);
+assert(parts.length===3&&parts.every(Number.isFinite),'runtime cache key must be semver');
+assert(parts[0]>10||(parts[0]===10&&parts[1]>=3),'runtime version must retain V10.3 or later');
 for(const file of ['35_v103_broadside.js','36_v103_battle_bridge.js','42_v103_muzzle_smoke.js','49_v103_broadside_control.js'])assert(html.includes(file),`entry must load ${file}`);
 assert(html.indexOf('30_battle.js')<html.indexOf('35_v103_broadside.js'),'broadside must load after battle');
 assert(html.indexOf('34_v102_ammo.js')<html.indexOf('35_v103_broadside.js'),'broadside must load after V10.2 ammo');
