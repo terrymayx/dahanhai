@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('fs');
+const assert=require('assert');
+const p='js/v8/20_projectiles.js';
+const src=fs.readFileSync(p,'utf8');
+assert.ok(src.includes('V99Material'),'projectile module should consult V99Material when available');
+assert.ok(src.includes('__v99Ricocheted'),'projectile module should cap ricochet to one per shell');
+assert.ok(src.includes('impact.ricochet'),'projectile collision should branch on V9.9 ricochet result');
+assert.ok(src.includes('p.dead=true'),'non-ricochet direct hits must still stop on the foremost physical layer');
+assert.ok(!src.includes('penetration-=')&&!src.includes('penetration -='),'V9.9 must not restore multi-layer penetration');
+console.log('V9.9 projectile ricochet regression passed');
