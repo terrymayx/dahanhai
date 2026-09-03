@@ -26,7 +26,10 @@ assert.strictEqual(feedback.shake,0,'combat feedback must not create camera shak
 assert(feedback.hitStop>0,'hit-stop may remain even when camera shake is disabled');
 
 const html=fs.readFileSync('index.html','utf8');
+const versions=[];
 for(const f of ['00_v8_base.js','10_ship_grid.js','20_projectiles.js','30_battle.js','35_combat_tuning.js','40_render.js','50_input_loop.js']){
-  assert(new RegExp(`js/v8/${f.replace('.','\\.')}\\?v=(?:8\\.6\\.0|9\\.0\\.0)`).test(html),`${f} must remain loaded by the active V8.6+ entry`);
+  const m=html.match(new RegExp(`js/v8/${f.replace('.','\\.')}\\?v=([0-9]+\\.[0-9]+\\.[0-9]+)`));
+  assert(m,`${f} must remain loaded by the active V8.4-derived entry`);versions.push(m[1]);
 }
+assert(versions.every(v=>v===versions[0]),'calm-fire core modules must share the active cache key');
 console.log('V8.4 calm-fire compatibility tests passed');
