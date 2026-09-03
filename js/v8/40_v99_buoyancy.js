@@ -4,7 +4,7 @@
   const G=root.V8ShipGrid,B=root.V8Battle||null;
   if(!G)throw new Error('V9.9 buoyancy requires V8ShipGrid');
 
-  const MAX_ROLL=.22;
+  const MAX_ROLL=.62;
   const MAX_TRIM=.16;
   const SINK_RATIO=.38;
   const SINK_DELAY=2.25;
@@ -49,20 +49,24 @@
     prepareShip(ship);
     const dry=recomputeMass(ship),comps=ship.__v99Compartments||[];
     let waterMass=0,wmx=0,wmy=0,buoyancy=0,bx=0,by=0,capacity=0;
+    const transverseHalf=Math.max(1,(ship.kind==='player'?ship.gridWidth:ship.gridHeight)*(ship.cellSize||8)*.5);
     for(const comp of comps){
-      const cap=Math.max(.001,Number(comp.capacityWeight)||0),water=clamp(Number(comp.water)||0,0,1),p=comp.centerLocal||{x:0,y:0};
+      const cap=Math.max(.001,Number(comp.capacityWeight)||0),water=clamp(Number(comp.water)||0,0,1),base=comp.centerLocal||{x:0,y:0};
+      const side=clamp(Number(comp.waterSide)||0,-1,1);
+      const p={x:base.x,y:base.y};
+      if(ship.kind==='player')p.x+=side*transverseHalf*.52;else p.y+=side*transverseHalf*.52;
       const wm=cap*water*.72;waterMass+=wm;wmx+=p.x*wm;wmy+=p.y*wm;
-      const b=cap*(1-water);buoyancy+=b;bx+=p.x*b;by+=p.y*b;capacity+=cap;
+      const b=cap*(1-water);buoyancy+=b;bx+=base.x*b;by+=base.y*b;capacity+=cap;
     }
     const totalMass=dry.mass+waterMass;
     const com={x:(dry.center.x*dry.mass+wmx)/Math.max(.001,totalMass),y:(dry.center.y*dry.mass+wmy)/Math.max(.001,totalMass)};
     const cob={x:buoyancy>0?bx/buoyancy:0,y:buoyancy>0?by/buoyancy:0};
     const buoyancyRatio=capacity>0?clamp(buoyancy/capacity,0,1):1;
-    const transverseHalf=Math.max(1,(ship.kind==='player'?ship.gridWidth:ship.gridHeight)*(ship.cellSize||8)*.5);
     const longitudinalHalf=Math.max(1,(ship.kind==='player'?ship.gridHeight:ship.gridWidth)*(ship.cellSize||8)*.5);
     const transverseDelta=ship.kind==='player'?(com.x-cob.x):(com.y-cob.y);
     const longitudinalDelta=ship.kind==='player'?(com.y-cob.y):(com.x-cob.x);
-    const roll=clamp(transverseDelta/transverseHalf*.30,-MAX_ROLL,MAX_ROLL);
+    const floodAmplifier=1+Math.max(0,1-buoyancyRatio)*1.7;
+    const roll=clamp(transverseDelta/transverseHalf*.72*floodAmplifier,-MAX_ROLL,MAX_ROLL);
     const trim=clamp(longitudinalDelta/longitudinalHalf*.22,-MAX_TRIM,MAX_TRIM);
     const sinkOffset=Math.max(0,(1-buoyancyRatio)*(1-buoyancyRatio)*22+Math.abs(trim)*18);
     return{centerOfMass:com,centerOfBuoyancy:cob,buoyancyRatio,roll,trim,sinkOffset,totalMass,waterMass};
@@ -100,7 +104,8 @@
 
     const integrity=typeof G.integrity==='function'?G.integrity(ship):1;
     const poorBuoyancy=target.buoyancyRatio<SINK_RATIO;
-    const capsize=Math.abs(target.roll)>.20&&sideFloodDanger(ship)>.66;
+    // V10 owns capsize once loaded; retain this legacy gate for older entrypoints.
+    const capsize=!root.V100Sinking&&Math.abs(target.roll)>.20&&sideFloodDanger(ship)>.66;
     const structuralFailure=integrity<.18&&((ship.structuralChunks&&ship.structuralChunks.length>0)||(ship.__v99TopologyRevision||0)>8);
     ship.__v99SinkTimer=poorBuoyancy?ship.__v99SinkTimer+dt:Math.max(0,ship.__v99SinkTimer-dt*.8);
     ship.__v99CapsizeTimer=capsize?ship.__v99CapsizeTimer+dt:Math.max(0,ship.__v99CapsizeTimer-dt);
