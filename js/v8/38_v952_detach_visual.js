@@ -2,7 +2,7 @@
   'use strict';
 
   const G=root.V8ShipGrid,V=root.V9VectorShip;
-  if(!G||!V||typeof V.drawShipLocal!=='function')throw new Error('V9.5.6 live support visual requires grid and vector ship');
+  if(!G||!V||typeof V.drawShipLocal!=='function')throw new Error('V9.5.7 live support visual requires grid and vector ship');
 
   const originalDrawShipLocal=V.drawShipLocal;
   const cache=new WeakMap();
@@ -21,13 +21,11 @@
     s={canvas,ctx:canvas.getContext('2d'),w,h};cache.set(ship,s);return s;
   }
 
-  // V9.5.6: the visible hull/deck is allowed to exist ONLY where a live physical
-  // grid cell supports it. This removes curved vector-shell remnants that used to
-  // hang in mid-air after the real collision grid had already been destroyed.
-  // Small overlapping rounded support pads preserve a smooth silhouette while
-  // keeping drawing and collision topology tied to the same live cells.
+  // V9.5.7: visible hull material is still tied to live physical cells, but each
+  // support footprint is smaller and much rounder. Combined with the new 6px grid,
+  // the union reads like a smooth hull instead of a staircase of square pixels.
   function applyLiveSupportMask(ctx,ship){
-    const cs=ship.cellSize||8;
+    const cs=ship.cellSize||6;
     const live=(ship.cells||[]).filter(c=>c.alive&&!c.detachedGone);
     if(!live.length){ctx.clearRect(-5000,-5000,10000,10000);return;}
 
@@ -37,20 +35,15 @@
     ctx.beginPath();
     for(const cell of live){
       const p=G.cellCenterLocal(ship,cell);
-      const half=cs*.68;
-      const radius=Math.max(1,cs*.34);
+      const half=cs*.72;
+      const radius=cs*.52;
       ctx.roundRect(p.x-half,p.y-half,half*2,half*2,radius);
     }
-    // One fill operation means all support pads form a union. Repeated
-    // destination-in fills would intersect the pads and erase the whole ship.
     ctx.fill();
     ctx.restore();
   }
 
   function redrawAboveHullDetails(ctx,ship){
-    // The support mask intentionally clips the broad vector shell. Repaint mast/
-    // sail and tiny weapon details afterwards so valid live components can extend
-    // slightly beyond one cell without recreating unsupported hull material.
     if(typeof V.drawMastsAndSails==='function')V.drawMastsAndSails(ctx,ship);
     if(typeof V.drawCannons==='function')V.drawCannons(ctx,ship);
     if(typeof V.drawDamageMarks==='function')V.drawDamageMarks(ctx,ship);
