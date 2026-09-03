@@ -84,6 +84,9 @@
     if(!active(state))return;
     const v=viewport(canvas),ctx=canvas.getContext('2d');ctx.setTransform(v.dpr,0,0,v.dpr,0,0);
     drawBoardingLines(ctx,v,state,blend);
+    // V10.5 owns persistent crew, boarding-class visuals and boarding HUD.
+    // Keep this renderer responsible for the proven V10.4 camera/boarding-line layer only.
+    if(root.DHH&&root.DHH.V105CrewRender)return;
     const b=state.boarding;
     for(const u of b.allies||[])drawUnit(ctx,v,state,blend,u);
     for(const u of b.boarders||[])drawUnit(ctx,v,state,blend,u);
