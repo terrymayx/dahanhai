@@ -158,11 +158,14 @@
       }
       if(ratio>BEND_CRACK_RATIO&&F&&sec.crackSeed&&typeof F.seedImpact==='function'&&(!Number.isFinite(sec.__crackCooldown)||sec.__crackCooldown<=0)){
         F.seedImpact(ship,sec.crackSeed,{vx:0,vy:0,power:24+(ratio-1)*80,grade:ratio>BEND_BREAK_RATIO?'heavy':'penetrated'});
+        const Branches=root.V101CrackBranches||null;
+        if(Branches&&typeof Branches.registerImpact==='function')Branches.registerImpact(ship,sec.crackSeed,{vx:0,vy:0,power:24+(ratio-1)*80,grade:ratio>BEND_BREAK_RATIO?'heavy':'penetrated'});
         sec.__crackCooldown=.7;
       }
       sec.__crackCooldown=Math.max(0,(sec.__crackCooldown||0)-dt);
       sec.overloadTime=ratio>BEND_BREAK_RATIO?(sec.overloadTime||0)+dt:Math.max(0,(sec.overloadTime||0)-dt*.8);
-      if(ratio>BEND_SNAP_RATIO||sec.overloadTime>=BREAK_DELAY){forceSectionBreak(ship,sec.index);sec.overloadTime=0;break;}
+      // V10.1 owns the visible yielding/tearing delay. V10.0 keeps legacy instant separation only when V101 is absent.
+      if(!root.V101ProgressiveBreak&&(ratio>BEND_SNAP_RATIO||sec.overloadTime>=BREAK_DELAY)){forceSectionBreak(ship,sec.index);sec.overloadTime=0;break;}
     }
     ship.__v100MaxBendingRatio=maxRatio;
     return changed;
