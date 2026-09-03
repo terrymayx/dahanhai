@@ -11,6 +11,10 @@
   function clamp(v,a,b){return Math.max(a,Math.min(b,Number.isFinite(v)?v:a));}
   function key(gx,gy){return gx+','+gy;}
   function norm(x,y){const d=Math.hypot(x,y)||1;return{x:x/d,y:y/d};}
+  function ammoProfile(projectile){
+    const Ammo=root.V102Ammo||null;
+    return Ammo&&typeof Ammo.profileFor==='function'?Ammo.profileFor(projectile&&projectile.ammoType):null;
+  }
 
   function prepareCell(ship,cell){
     if(!cell)return cell;
@@ -81,8 +85,10 @@
     const impactAngle=Math.acos(clamp(impactCos,-1,1))*180/Math.PI;
     const armorNow=currentArmor(ship,cell);
     const effectiveArmor=armorNow/Math.max(.35,impactCos);
-    const attack=Math.max(0,Number(projectile.attackPower)||Number(projectile.damage)||0);
-    const raw=Math.max(0,Number(projectile.damage)||attack);
+    const rawAttackPower=Math.max(0,Number(projectile.attackPower)||Number(projectile.damage)||0);
+    const profile=ammoProfile(projectile),armorAttackScale=profile&&Number.isFinite(profile.armorAttackScale)?profile.armorAttackScale:1;
+    const attack=rawAttackPower*armorAttackScale;
+    const raw=Math.max(0,Number(projectile.damage)||rawAttackPower);
     const ratio=effectiveArmor>0?attack/effectiveArmor:99;
     const ricochet=!projectile.__v99Ricocheted&&impactCos<.28&&attack<effectiveArmor*1.10;
     const grade=ricochet?'ricochet':gradeFor(ratio);
@@ -94,7 +100,7 @@
     const armorLoss=Math.min(cell.armorHp,attack*impactFactor*materialFactor*gradeBoost);
     const fractureGain=clamp((Math.max(0,ratio-.55)*.075)+(grade==='heavy'?.10:grade==='penetrated'?.045:grade==='ricochet'?.01:.018),0,.22);
     const fatigueGain=clamp(.018+Math.min(2.5,ratio)*.035+(grade==='heavy'?.04:0),.01,.15);
-    return {armorMax:cell.armorMax,armorHp:cell.armorHp,armorNow,normal,impactCos,impactAngle,effectiveArmor,ratio,grade,ricochet,multiplier,effectiveDamage,armorLoss,fractureGain,fatigueGain,attackPower:attack,rawDamage:raw};
+    return {armorMax:cell.armorMax,armorHp:cell.armorHp,armorNow,normal,impactCos,impactAngle,effectiveArmor,ratio,grade,ricochet,multiplier,effectiveDamage,armorLoss,fractureGain,fatigueGain,rawAttackPower,attackPower:attack,armorAttackScale,rawDamage:raw};
   }
 
   function resolveSplash(ship,cell,rawDamage,attackPower){
