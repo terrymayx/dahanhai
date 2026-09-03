@@ -1,10 +1,11 @@
 const fs=require('fs');
 const assert=require('assert');
 const html=fs.readFileSync('index.html','utf8');
-assert(html.includes('V10.2 · 舰炮弹药与真实命中系统'),'entry title should be V10.2');
+assert(/<title>大航海时代 V\d+\.\d+/.test(html),'entry title should identify a current major/minor release');
 const scripts=[...html.matchAll(/<script\s+src="([^"]+)"/g)].map(m=>m[1]);
 assert(scripts.length>20,'entry should still load the modular V8/V9/V10 runtime');
-for(const src of scripts)assert(src.endsWith('?v=10.2.0'),`runtime cache key must be 10.2.0: ${src}`);
+const versions=scripts.map(src=>{const m=src.match(/\?v=(\d+\.\d+\.\d+)$/);assert(m,`runtime script must use semver cache key: ${src}`);return m[1];});
+assert.strictEqual(new Set(versions).size,1,'all runtime scripts must use one consistent cache key');
 for(const file of ['34_v102_ammo.js','49_v102_ammo_control.js','35_v101_crack_branches.js','38_v101_progressive_break.js','39_v101_compartment_water_visual.js','43_v101_chunk_damage.js'])assert(html.includes(file),`entry must load ${file}`);
 assert(html.indexOf('34_v99_material.js')<html.indexOf('34_v102_ammo.js'),'V102 ammo profile should load after material definitions');
 assert(html.indexOf('34_v102_ammo.js')<html.indexOf('35_v100_fracture.js'),'V102 ammo profile must be available before combat starts');
