@@ -16,16 +16,10 @@
     for(const [dx,dy] of DIRS){const n=ship.cellMap&&ship.cellMap[key(cell.gx+dx,cell.gy+dy)];if(n)out.push(n);}
     return out;
   }
-  function nearOpenWater(ship,cell){
-    for(const n of neighbors(ship,cell))if(n&&!n.alive&&!n.detachedGone)return true;
-    return false;
-  }
-  function ignite(ship,cell){
+  function nearOpenWater(ship,cell){for(const n of neighbors(ship,cell))if(n&&!n.alive&&!n.detachedGone)return true;return false;}
+  function igniteCell(cell){
     if(!cell||!cell.alive||cell.burning||!isWood(cell))return false;
-    cell.burning=true;cell.fireAge=0;cell.fireDamage=0;
-    if(!Array.isArray(ship.__v96BurningCells))ship.__v96BurningCells=[];
-    if(!ship.__v96BurningCells.includes(cell))ship.__v96BurningCells.push(cell);
-    return true;
+    cell.burning=true;cell.fireAge=0;cell.fireDamage=0;return true;
   }
 
   function updateShipFireSpread(state,ship,dt){
@@ -39,8 +33,6 @@
     const flood=Math.max(0,Math.min(1,ship.floodLevel||0));
     const survivors=[];
 
-    // Water inside the hull increasingly suppresses fire. Cells beside an open
-    // breach are even more likely to be extinguished.
     for(const cell of burning){
       const wetBonus=nearOpenWater(ship,cell)?.13:0;
       const extinguishChance=Math.max(0,(flood-.12)*.20)+wetBonus*flood;
@@ -51,8 +43,8 @@
     }
     burning=survivors;
 
-    // Slow, capped propagation. One update can create at most two new fire cells.
     let fireCount=burning.length,created=0;
+    const newFires=[];
     if(fireCount<MAX_FIRE_POINTS){
       for(const source of burning){
         if(created>=2||fireCount>=MAX_FIRE_POINTS)break;
@@ -61,15 +53,11 @@
         if(!candidates.length)continue;
         const target=candidates[Math.floor(Math.random()*candidates.length)];
         const spreadChance=.075*(1-flood*.72);
-        if(Math.random()<spreadChance&&ignite(ship,target)){created++;fireCount++;}
+        if(Math.random()<spreadChance&&igniteCell(target)){newFires.push(target);created++;fireCount++;}
       }
     }
 
-    ship.__v96BurningCells=burning;
-    if(created){
-      for(const c of ship.__v96BurningCells||[])if(c&&c.burning&&!burning.includes(c))burning.push(c);
-      ship.__v96BurningCells=burning.filter((c,i,a)=>c&&c.burning&&a.indexOf(c)===i).slice(0,MAX_FIRE_POINTS);
-    }
+    ship.__v96BurningCells=[...burning,...newFires].filter((c,i,a)=>c&&c.alive&&c.burning&&!c.detachedGone&&a.indexOf(c)===i).slice(0,MAX_FIRE_POINTS);
   }
 
   B.update=function(state,dt){
@@ -79,5 +67,5 @@
     for(const ship of state.enemies||[])updateShipFireSpread(state,ship,dt);
   };
 
-  root.V97FireSpread={ignite,updateShipFireSpread,MAX_FIRE_POINTS,STEP};
+  root.V97FireSpread={ignite:igniteCell,updateShipFireSpread,MAX_FIRE_POINTS,STEP};
 })(typeof globalThis!=='undefined'?globalThis:this);
