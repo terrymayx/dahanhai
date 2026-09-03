@@ -7,7 +7,7 @@
 
   function computeArcHeight(side,distance,variation){
     distance=Math.max(0,distance||0);
-    // V9.5.2: naval cannonballs fly almost flat. Keep only a small visual arc.
+    // V9.5.2+: naval cannonballs fly almost flat. Keep only a small visual arc.
     const base=side==='player'
       ? Math.max(12,Math.min(28,10+distance*.012))
       : Math.max(8,Math.min(20,7+distance*.009));
@@ -45,6 +45,8 @@
       x:opts.x,y:opts.y,vx:opts.vx||0,vy:opts.vy||0,
       damage:opts.damage||24,side,life:opts.life||3,
       radius:opts.radius||5,dead:false,
+      // Kept for compatibility, but V9.5.3 no longer lets one cannonball tunnel
+      // through multiple physical layers in the same shot.
       penetration:opts.penetration==null?(side==='player'?78:0):opts.penetration,
       hitCells:Object.create(null),didHit:false,splashDone:false,
       z:0,prevZ:0,vz:initialVz,initialVz,gravity,arcHeight,flightTime,arcAge:0,
@@ -79,6 +81,29 @@
     }
   }
 
+  // Return the first LIVE physical grid cell actually crossed by this frame's
+  // projectile segment. We preserve the exact segment order so front hull/deck
+  // always blocks deeper layers and even another ship behind it.
+  function firstPhysicalHit(ship,x0,y0,x1,y1){
+    if(!ship||ship.state==='gone')return null;
+    const a=Grid.worldToLocal(ship,x0,y0),b=Grid.worldToLocal(ship,x1,y1);
+    const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+    const step=Math.max(1.25,(ship.cellSize||8)*.22);
+    const samples=Math.max(1,Math.ceil(len/step));
+    let lastKey='';
+    for(let i=0;i<=samples;i++){
+      const t=i/samples,lx=a.x+dx*t,ly=a.y+dy*t;
+      const g=Grid.localToGrid(ship,lx,ly),k=g.gx+','+g.gy;
+      if(k===lastKey)continue;
+      lastKey=k;
+      const cell=ship.cellMap&&ship.cellMap[k];
+      if(cell&&cell.alive&&!cell.detachedGone){
+        return {ship,cell,t,worldX:x0+(x1-x0)*t,worldY:y0+(y1-y0)*t};
+      }
+    }
+    return null;
+  }
+
   function updateAll(state,dt){
     const out=[];
     for(const p of state.projectiles){
@@ -87,19 +112,25 @@
       updateArc(p,dt);
       p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;
       updateTrail(p,dt);
-      let best=null,bestCell=null,bestD=Infinity;
+
+      // V9.5.3: choose the earliest actual intersection along the projectile ray,
+      // not the nearest cell center. This makes the foremost physical layer win.
+      let bestHit=null;
       for(const ship of targetsFor(state,p)){
-        const cell=Grid.firstCellAlongSegment(ship,x0,y0,p.x,p.y);
-        if(!cell)continue;
-        const hk=(ship.id||ship.kind)+':'+cell.gx+','+cell.gy;
+        const hit=firstPhysicalHit(ship,x0,y0,p.x,p.y);
+        if(!hit)continue;
+        const hk=(ship.id||ship.kind)+':'+hit.cell.gx+','+hit.cell.gy;
         if(p.hitCells[hk])continue;
-        const w=Grid.cellCenterWorld(ship,cell);
-        const d=Math.hypot(w.x-x0,w.y-y0);
-        if(d<bestD){best=ship;bestCell=cell;bestD=d;}
+        if(!bestHit||hit.t<bestHit.t)bestHit=hit;
       }
-      if(best&&bestCell){
+
+      if(bestHit){
+        const best=bestHit.ship,bestCell=bestHit.cell;
         p.didHit=true;
-        const hitPos=Grid.cellCenterWorld(best,bestCell);
+        // Impact is the actual front-layer crossing point, while damage still
+        // belongs to that grid cell.
+        const hitPos={x:bestHit.worldX,y:bestHit.worldY};
+        p.x=hitPos.x;p.y=hitPos.y;
         const res=Grid.damageCell(best,bestCell,p.damage);
         const hk=(best.id||best.kind)+':'+bestCell.gx+','+bestCell.gy;
         p.hitCells[hk]=true;
@@ -109,20 +140,12 @@
         const threshold=best.side==='player'?.24:.34;
         if(ratio<=threshold&&typeof state.onShipCritical==='function')state.onShipCritical(best,ratio,p);
 
-        if(p.side==='player'){
-          if(!res.destroyed){
-            p.dead=true;
-          }else{
-            const material=bestCell.material||bestCell.type;
-            p.penetration-=PEN_COST[material]||28;
-            if(p.penetration>0){
-              const ps=Math.hypot(p.vx,p.vy)||1,ux=p.vx/ps,uy=p.vy/ps;
-              p.x=hitPos.x+ux*best.cellSize*.62;
-              p.y=hitPos.y+uy*best.cellSize*.62;
-            }else p.dead=true;
-          }
-        }else p.dead=true;
+        // Critical rule: one cannonball = one physical layer. Even when this hit
+        // destroys the front cell, the same projectile cannot continue into the
+        // deck/beam behind it. A later cannonball can pass only after the opening exists.
+        p.dead=true;
       }
+
       if(!p.dead&&!p.didHit&&!p.splashDone&&p.arcHeight>0&&p.arcAge>=p.flightTime){
         p.splashDone=true;
         if(typeof state.onProjectileSplash==='function')state.onProjectileSplash(p,{x:p.x,y:p.y});
@@ -133,5 +156,5 @@
     state.projectiles=out;
   }
 
-  root.V8Projectile={PEN_COST,computeArcHeight,spawn,estimateFlightTime,updateArc,updateTrail,updateAll};
+  root.V8Projectile={PEN_COST,computeArcHeight,spawn,estimateFlightTime,updateArc,updateTrail,firstPhysicalHit,updateAll};
 })(typeof globalThis!=='undefined'?globalThis:this);
