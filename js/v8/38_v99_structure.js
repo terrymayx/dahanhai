@@ -15,6 +15,7 @@
   function clamp(v,a,b){return Math.max(a,Math.min(b,Number.isFinite(v)?v:a));}
   function key(gx,gy){return gx+','+gy;}
   function cellWeight(c){return (G.CELL_WEIGHT&&G.CELL_WEIGHT[c&&c.type])||c&&c.weight||1;}
+  function markBendingDirty(ship,reason){const B=root.V100Bending||null;if(B&&typeof B.markDirty==='function')B.markDirty(ship,reason);}
 
   function prepareShip(ship){
     if(!ship)return ship;
@@ -100,7 +101,10 @@
       }
       processed.push({cell:c,ratio:item.ratio,destroyed});
     }
-    if(processed.length)ship.__v99MaterialRevision=(ship.__v99MaterialRevision||0)+1;
+    if(processed.length){
+      ship.__v99MaterialRevision=(ship.__v99MaterialRevision||0)+1;
+      markBendingDirty(ship,'local-stress');
+    }
     return processed;
   }
 
@@ -123,7 +127,7 @@
   function applyPowderFatigue(ship,cell){
     if(!ship||!cell)return;
     const M=root.V99Material||null;
-    let queued=0;
+    let queued=0,changed=0;
     for(const target of localCells(ship,cell,3)){
       if(!STRUCTURAL_TYPES.has(target.type))continue;
       const d=Math.hypot(target.gx-cell.gx,target.gy-cell.gy);
@@ -134,8 +138,10 @@
         target.fracture=clamp((Number(target.fracture)||0)+power*.055,0,1);
         target.fatigue=clamp((Number(target.fatigue)||0)+power*.045,0,1);
       }
+      changed++;
       if(queued<3){queueLocalSolve(ship,target);queued++;}
     }
+    if(changed)markBendingDirty(ship,'powder-fatigue');
   }
 
   function massOf(cells){let m=0;for(const c of cells||[])m+=cellWeight(c);return m;}
@@ -172,6 +178,7 @@
       age:0,sinkProgress:0,phase:'float',baseColor:ship.baseColor,deckColor:ship.deckColor,__v99Globalized:false
     };
     ship.structuralChunks.push(chunk);
+    markBendingDirty(ship,'large-chunk');
     return chunk;
   }
 
