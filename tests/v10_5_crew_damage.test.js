@@ -1,0 +1,10 @@
+'use strict';
+const {assert,makeContext,makeState,loadV105Core,load}=require('./v10_5_test_helpers');
+const ctx=makeContext(),st=makeState(ctx);loadV105Core(ctx);load('js/v8/44_v105_crew_damage.js',ctx);
+const Crew=ctx.V105Crew,Damage=ctx.V105CrewDamage;Crew.prepareBattle(st);
+const victim=st.player.crew.find(c=>c.role==='sailor');const before=victim.hp;
+Damage.damageNear(st,st.player,{x:victim.x,y:victim.y},18,20,{kind:'blast'});assert.ok(victim.hp<before);
+const far=st.player.crew.find(c=>c!==victim&&c.alive);far.x+=500;far.y+=500;const farBefore=far.hp;
+Damage.damageNear(st,st.player,{x:victim.x,y:victim.y},18,20,{kind:'blast'});assert.equal(far.hp,farBefore);
+Crew.damageCrew(victim,999,{kind:'test'});assert.equal(victim.alive,false);Crew.prepareBattle(st);assert.equal(victim.alive,false);
+console.log('V10.5 crew damage: PASS');
