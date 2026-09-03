@@ -1,0 +1,45 @@
+name: V10.0 Regression
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test-v100:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: V10.0 focused regression
+        shell: bash
+        run: |
+          set -e
+          for t in tests/v10_0*.test.js; do
+            [ -e "$t" ] || continue
+            echo "== $t =="
+            node "$t"
+          done
+      - name: V10.0 changed-module syntax
+        shell: bash
+        run: |
+          set -e
+          for f in \
+            js/v8/20_projectiles.js \
+            js/v8/31_v952_detach_cleanup.js \
+            js/v8/32_v954_impact_explosion.js \
+            js/v8/35_v100_fracture.js \
+            js/v8/37_v99_compartments.js \
+            js/v8/38_v99_structure.js \
+            js/v8/38_v100_bending.js \
+            js/v8/39_v100_breach_visual.js \
+            js/v8/40_v99_buoyancy.js \
+            js/v8/40_v100_sinking.js \
+            js/v8/41_render_v9.js \
+            js/v8/43_v100_chunk_physics.js \
+            js/v8/45_damage_overlay.js \
+            js/v8/47_v97_status_overlay.js; do
+            [ -e "$f" ] || continue
+            node --check "$f"
+          done
