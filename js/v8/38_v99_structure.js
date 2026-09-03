@@ -101,10 +101,7 @@
       }
       processed.push({cell:c,ratio:item.ratio,destroyed});
     }
-    if(processed.length){
-      ship.__v99MaterialRevision=(ship.__v99MaterialRevision||0)+1;
-      markBendingDirty(ship,'local-stress');
-    }
+    if(processed.length){ship.__v99MaterialRevision=(ship.__v99MaterialRevision||0)+1;markBendingDirty(ship,'local-stress');}
     return processed;
   }
 
@@ -134,10 +131,7 @@
       if(d>3.05)continue;
       const power=Math.max(.25,2.4-d*.58);
       if(M&&typeof M.addBlastFatigue==='function')M.addBlastFatigue(ship,target,power);
-      else{
-        target.fracture=clamp((Number(target.fracture)||0)+power*.055,0,1);
-        target.fatigue=clamp((Number(target.fatigue)||0)+power*.045,0,1);
-      }
+      else{target.fracture=clamp((Number(target.fracture)||0)+power*.055,0,1);target.fatigue=clamp((Number(target.fatigue)||0)+power*.045,0,1);}
       changed++;
       if(queued<3){queueLocalSolve(ship,target);queued++;}
     }
@@ -162,19 +156,28 @@
   }
 
   function createChunk(ship,comp,sourceMass){
-    const center=localCenter(ship,comp),world=localToWorld(ship,center),mass=massOf(comp);
+    const center=localCenter(ship,comp),world=localToWorld(ship,center),mass=massOf(comp),cellSize=ship.cellSize||8;
+    let maxR=cellSize,powderCount=0,burningCount=0,fractureSum=0,exposedHull=0;
     const cells=(comp||[]).map(c=>{
-      const p=typeof G.cellCenterLocal==='function'?G.cellCenterLocal(ship,c):{x:(c.gx+.5-(ship.gridWidth||0)/2)*(ship.cellSize||8),y:(c.gy+.5-(ship.gridHeight||0)/2)*(ship.cellSize||8)};
-      return{x:p.x-center.x,y:p.y-center.y,type:c.type,weight:cellWeight(c),fracture:Number(c.fracture)||0};
+      const p=typeof G.cellCenterLocal==='function'?G.cellCenterLocal(ship,c):{x:(c.gx+.5-(ship.gridWidth||0)/2)*cellSize,y:(c.gy+.5-(ship.gridHeight||0)/2)*cellSize};
+      const x=p.x-center.x,y=p.y-center.y;
+      maxR=Math.max(maxR,Math.hypot(x,y)+cellSize*.8);
+      if(c.type==='powder')powderCount++;
+      if(c.burning)burningCount++;
+      if(c.type==='hull'||c.type==='deck')exposedHull++;
+      fractureSum+=Number(c.fracture)||0;
+      return{x,y,type:c.type,weight:cellWeight(c),fracture:Number(c.fracture)||0,burning:!!c.burning};
     });
-    const ph=ship.physics||{};
+    const ph=ship.physics||{},avgFracture=fractureSum/Math.max(1,cells.length);
+    const breachRate=.006+Math.min(.035,exposedHull/Math.max(1,cells.length)*.018+avgFracture*.024);
     const chunk={
       id:(ship.id||ship.kind||'ship')+'-chunk-'+Date.now()+'-'+Math.floor(Math.random()*9999),
       sourceShipId:ship.id||null,x:world.x,y:world.y,rotation:Number(ship.rotation)||0,
       vx:(ship.side==='enemy'?-(ship.speed||0)*.18:0)+(ph.impulseX||0)*3,
       vy:(ph.impulseY||0)*3-8,angularVelocity:(Math.random()-.5)*.8,
-      mass,sourceMass,cellSize:ship.cellSize||8,cells,water:0,
-      buoyancy:Math.max(.18,1-(comp||[]).filter(c=>!c.alive).length/Math.max(1,(comp||[]).length)),
+      mass,sourceMass,cellSize,cells,water:0,radius:maxR,
+      buoyancy:Math.max(.18,1-avgFracture*.28),breachRate,
+      burning:burningCount>0,fireAge:0,powderCount,exploded:false,
       age:0,sinkProgress:0,phase:'float',baseColor:ship.baseColor,deckColor:ship.deckColor,__v99Globalized:false
     };
     ship.structuralChunks.push(chunk);
@@ -197,17 +200,17 @@
 
   function updateChunk(chunk,dt){
     chunk.age=(chunk.age||0)+dt;
-    const frames=dt*60;
-    const drag=Math.pow(.965,frames);
+    const frames=dt*60,drag=Math.pow(.965,frames);
     chunk.vx=(chunk.vx||0)*drag;chunk.vy=(chunk.vy||0)*drag;
     chunk.angularVelocity=(chunk.angularVelocity||0)*Math.pow(.975,frames);
     const buoyancy=clamp(Number(chunk.buoyancy)||0,0,1)*(1-clamp(Number(chunk.water)||0,0,1));
-    chunk.water=clamp((chunk.water||0)+dt*(.018+.026*(1-buoyancy)),0,1);
+    const leak=Math.max(.004,Number(chunk.breachRate)||.018);
+    chunk.water=clamp((chunk.water||0)+dt*(leak+.018*(1-buoyancy)),0,1);
     const netSink=Math.max(-10,32*(.58-buoyancy)+24*chunk.water);
     chunk.vy+=netSink*dt;
     chunk.x+=chunk.vx*dt;chunk.y+=chunk.vy*dt;chunk.rotation+=(chunk.angularVelocity||0)*dt;
     chunk.sinkProgress=clamp((chunk.water-.42)/.58,0,1);
-    if(chunk.sinkProgress>.98||chunk.age>18)chunk.phase='gone';
+    if(chunk.sinkProgress>.98||chunk.age>30)chunk.phase='gone';
   }
 
   function updateChunks(state,dt){
@@ -240,5 +243,5 @@
     if(originalUpdate)B.update=function(state,dt){originalUpdate(state,dt);if(state&&dt>0)updateChunks(state,dt);};
   }
 
-  root.V99Structure={LOCAL_RADIUS,MAX_OVERLOAD_NODES,LARGE_CHUNK_RATIO,MAX_GLOBAL_CHUNKS,prepareShip,structuralCapacityFor,localCells,solveLocal,queueLocalSolve,processQueue,applyPowderFatigue,classifyDetached,updateChunk,updateChunks};
+  root.V99Structure={LOCAL_RADIUS,MAX_OVERLOAD_NODES,LARGE_CHUNK_RATIO,MAX_GLOBAL_CHUNKS,prepareShip,structuralCapacityFor,localCells,solveLocal,queueLocalSolve,processQueue,applyPowderFatigue,classifyDetached,createChunk,updateChunk,updateChunks};
 })(typeof globalThis!=='undefined'?globalThis:this);
