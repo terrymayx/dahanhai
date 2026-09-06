@@ -1,79 +1,64 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>大航海时代 V10.5 · 持久船员与甲板近战</title>
-<style>
-  html,body{margin:0;padding:0;background:#0b1e2e;height:100%;overflow:hidden;}
-  canvas{display:block;position:fixed;left:0;top:0;touch-action:none;user-select:none;-webkit-user-select:none;}
-  #rot{display:none;position:fixed;inset:0;background:#0b1e2e;color:#fff;z-index:9;
-       font-family:"Microsoft YaHei",sans-serif;font-size:22px;text-align:center;padding-top:42vh;}
-  @media (orientation:portrait) and (max-width:860px){ #rot{display:block;} }
-</style>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#083b49">
+<meta name="description" content="蔚蓝航路 2.5D 海战：持续航行·甲板守卫在线试玩。">
+<title>蔚蓝航路 · 持续航行·甲板守卫</title>
+<link rel="stylesheet" href="style.css">
+<meta name="build" content="deck-guard-latest-2026-09-07">
 </head>
 <body>
-<canvas id="cv"></canvas>
-<div id="rot">🎮 请横屏体验<br><small style="font-size:14px;opacity:.7">V10.5 · 持久船员与甲板近战</small></div>
-<!-- V10.5.0: persistent crew now live on the real ship deck during naval combat and boarding. Cannon crews and helmsmen affect reload/turning, hazards and real impacts can injure crew, enemy boarding reuses persistent enemy sailors with swordsman/archer/elite-captain classes, and the player captain moves directly while melee attacks auto-trigger in range. V10.4 real-deck boarding, V10.3 real broadside batteries, V10.2 ammo and the one-shell-one-foremost-layer physics contract remain intact. -->
-<script src="js/v8/00_v8_base.js?v=10.5.0"></script>
-<script src="js/v8/10_ship_grid.js?v=10.5.0"></script>
-<script src="js/v8/11_v94_fine_grid.js?v=10.5.0"></script>
-<script src="js/v8/20_projectiles.js?v=10.5.0"></script>
-<script src="js/v8/30_battle.js?v=10.5.0"></script>
-<script src="js/v8/31_v952_detach_cleanup.js?v=10.5.0"></script>
-<script src="js/v8/32_v954_impact_explosion.js?v=10.5.0"></script>
-<script src="js/v8/33_v972_player_attack.js?v=10.5.0"></script>
-<script src="js/v8/34_v98_armor.js?v=10.5.0"></script>
-<script src="js/v8/34_v99_material.js?v=10.5.0"></script>
-<script src="js/v8/34_v102_ammo.js?v=10.5.0"></script>
-<script src="js/v8/35_v103_broadside.js?v=10.5.0"></script>
-<script src="js/v8/35_v100_fracture.js?v=10.5.0"></script>
-<script src="js/v8/35_v101_crack_branches.js?v=10.5.0"></script>
-<script src="js/v8/35_combat_tuning.js?v=10.5.0"></script>
-<script src="js/v8/36_damage_model.js?v=10.5.0"></script>
-<script src="js/v8/37_component_stress.js?v=10.5.0"></script>
-<script src="js/v8/37_v97_flooding.js?v=10.5.0"></script>
-<script src="js/v8/37_fire_damage.js?v=10.5.0"></script>
-<script src="js/v8/37_v97_fire_spread.js?v=10.5.0"></script>
-<script src="js/v8/37_v99_compartments.js?v=10.5.0"></script>
-<script src="js/v8/38_v99_structure.js?v=10.5.0"></script>
-<script src="js/v8/38_v100_bending.js?v=10.5.0"></script>
-<script src="js/v8/38_vector_ship.js?v=10.5.0"></script>
-<script src="js/v8/38_v952_detach_visual.js?v=10.5.0"></script>
-<script src="js/v8/39_v100_breach_visual.js?v=10.5.0"></script>
-<script src="js/v8/39_v101_compartment_water_visual.js?v=10.5.0"></script>
-<script src="js/v8/38_v101_progressive_break.js?v=10.5.0"></script>
-<script src="js/v8/39_destroyed_cell_cleanup.js?v=10.5.0"></script>
-<script src="js/v8/40_render.js?v=10.5.0"></script>
-<script src="js/v8/40_v99_buoyancy.js?v=10.5.0"></script>
-<script src="js/v8/40_v100_sinking.js?v=10.5.0"></script>
-<script src="js/v8/40_v97_flood_pose.js?v=10.5.0"></script>
-<script src="js/v8/42_v98_heavy_feedback.js?v=10.5.0"></script>
-<script src="js/v8/43_v100_chunk_physics.js?v=10.5.0"></script>
-<script src="js/v8/43_v101_chunk_damage.js?v=10.5.0"></script>
-<script src="js/v8/41_render_v9.js?v=10.5.0"></script>
-<script src="js/v8/42_v103_muzzle_smoke.js?v=10.5.0"></script>
-<script src="js/v8/45_damage_overlay.js?v=10.5.0"></script>
-<script src="js/v8/46_v952_hud_label.js?v=10.5.0"></script>
-<script src="js/v8/47_v97_status_overlay.js?v=10.5.0"></script>
-<script src="js/v8/44_v104_boarding.js?v=10.5.0"></script>
-<script src="js/v8/44_v104_nav_invalidation.js?v=10.5.0"></script>
-<script src="js/v8/44_v105_crew.js?v=10.5.0"></script>
-<script src="js/v8/44_v105_crew_posts.js?v=10.5.0"></script>
-<script src="js/v8/44_v105_crew_damage.js?v=10.5.0"></script>
-<script src="js/v8/44_v105_crew_ai.js?v=10.5.0"></script>
-<script src="js/v8/45_v104_boarding_render.js?v=10.5.0"></script>
-<script src="js/v8/45_v105_crew_render.js?v=10.5.0"></script>
-<script src="js/v8/36_v103_battle_bridge.js?v=10.5.0"></script>
-<script src="js/v8/36_v104_boarding_bridge.js?v=10.5.0"></script>
-<script src="js/v8/36_v105_staffing_bridge.js?v=10.5.0"></script>
-<script src="js/v8/36_v105_crew_bridge.js?v=10.5.0"></script>
-<script src="js/v8/50_input_loop.js?v=10.5.0"></script>
-<script src="js/v8/48_v976_attack_control.js?v=10.5.0"></script>
-<script src="js/v8/49_v102_ammo_control.js?v=10.5.0"></script>
-<script src="js/v8/49_v103_broadside_control.js?v=10.5.0"></script>
-<script src="js/v8/49_v104_boarding_control.js?v=10.5.0"></script>
-<script src="js/v8/49_v105_crew_control.js?v=10.5.0"></script>
-</body>
-</html>
+<main id="game">
+<canvas id="sea" aria-label="2.5D斜俯视海战：WASD机动，点击敌船锁定，1/2/3切换炮位船帆船体，空格集中齐射" tabindex="0"></canvas>
+<header class="topbar">
+  <div class="brand"><span class="brand-icon">♧</span><div><strong>蔚蓝航路</strong><small>AZURE SAILS</small></div><span class="tag">持续航行·甲板守卫</span></div>
+  <div class="location"><span class="live-dot"></span><span id="sceneNameTop">开阔海域</span> <span class="divider">/</span> 局部交战区</div>
+  <div class="tools"><button id="sound" aria-label="开启声音" title="声音">♫</button><button id="help" aria-label="操作说明" title="操作说明">?</button><button id="debug" aria-label="调试面板" title="调试 F2">D</button><button id="pause" aria-label="暂停游戏" title="暂停 P">Ⅱ</button><button id="full" aria-label="全屏" title="全屏">⛶</button></div>
+</header>
+<section class="ship-card">
+  <div class="ship-title"><span class="ship-emblem">⚓</span><div><small>你的旗舰</small><strong>逐风号</strong></div><span class="level">Lv. 01</span></div>
+  <div class="hull-label"><span>船体耐久</span><b id="hpText">300 / 300</b></div><div class="bar"><i id="hpBar"></i></div>
+  <div class="flood-label"><span>船舱进水</span><b id="waterText">0%</b></div><div class="bar flood-bar"><i id="waterBar"></i></div>
+  <div class="ship-stats"><span>⚒ 修理 <b id="repairUses">2</b></span><span>⚑ <b id="kills">0</b> / <b id="enemyTotal">2</b></span></div>
+</section>
+<section class="mission">
+  <small>战斗测试场景</small><strong id="missionTitle">开阔海域</strong><span id="missionText">重炮船 + 拦截船</span>
+  <div class="scenario-tabs" aria-label="选择战斗测试场景">
+    <button data-scene="0" class="active">1 开阔</button><button data-scene="1">2 礁石</button><button data-scene="2">3 护卫</button>
+  </div>
+  <div class="layout-tools"><button id="retryScene">重试本局</button><button id="changeLayout">更换布局</button></div>
+</section>
+<aside class="map-card"><div class="map-title"><span>局部交战海域</span><span>N ↑</span></div><canvas id="minimap" width="180" height="122" aria-label="海域小地图"></canvas><div class="map-key"><span><i></i>我方</span><span><i></i>敌方</span><span id="clock">00:00</span></div></aside>
+<div class="wind">↗ <span>自由机动</span><b id="speedText">航速 0 kn</b></div>
+<div id="toast" role="status">观察敌人分工 → 移动抢位 → 集火关键炮位</div>
+<div class="controls"><div id="joystick" aria-label="拖动摇杆驾驶"><div class="joy-cross">＋</div><div id="stick"></div></div><span class="move-hint">WASD / 摇杆 · 转向有惯性 · 松开减速停车</span></div>
+<div class="bottom-center"><span class="auto-dot"></span><span id="aimStatus">自动寻找侧舷射界</span><small id="targetStatus">点击敌船锁定目标 · Q切换</small></div>
+<div class="focus-panel"><span>集火部位</span><div><button data-focus="gun" class="active">1 炮位</button><button data-focus="sail">2 船帆</button><button data-focus="hull">3 船体</button></div></div>
+<div class="actions">
+  <button id="repair" class="ability" aria-label="修理 R"><span class="ability-icon">⚒</span><strong>应急修理</strong><small id="repairCd">R · 2次</small></button>
+  <button id="boost" class="ability" aria-label="突进 E"><span class="ability-icon">≋</span><strong>突进</strong><small id="boostCd">E · 短时加速</small></button>
+  <button id="volley" class="ability primary" aria-label="齐射 空格"><span class="ability-icon">✦</span><strong>集中齐射</strong><span class="reload-meter" aria-hidden="true"><i id="volleyLoad"></i></span><small id="volleyCd">SPACE · 重炮就绪</small></button>
+</div>
+<aside id="debugPanel" class="debug-panel hidden" aria-live="polite">
+  <div class="debug-title"><b>战斗调试</b><span>F2 关闭</span></div>
+  <pre id="debugText"></pre>
+</aside>
+<div class="edge-vignette"></div><div id="portrait">↻ 建议横屏，获得更开阔的海战视野</div>
+<div id="overlay" class="overlay hidden"><section class="dialog"><span class="eyebrow" id="modalEyebrow">AZURE SAILS</span><h1 id="modalTitle">战斗暂停</h1><p id="modalText"></p><div id="instructions" class="instructions hidden">
+<p><b>机动</b> WASD／摇杆控制移动方向。船体逐渐转向输入方向，松开后减速到停留，可绕侧、超越、返回收尾。</p>
+<p><b>目标</b> 点击／触摸敌船锁定；Q切换。没有手选目标时，自动选择当前侧舷射界内的合适敌船。</p>
+<p><b>部位</b> 1炮位、2船帆、3船体。炮位会选择当前暴露的一侧前/后炮段；船体优先打水线以制造持续进水。</p>
+<p><b>船员交火</b> 甲板上的4名弓箭手与2名火枪手自动分批攻击射程内的敌方人员。箭矢和子弹独立飞行，人员伤害不会直接扣船体。</p>
+<p><b>重炮齐射</b> SPACE／右下按钮。开局立即可用，基础装填约6秒；装填受炮位压制影响但最多延长25%。无有效射界时不会空放，也不会消耗装填。</p>
+<p><b>提前量</b> 炮弹按目标速度计算预计落点，发射后不追踪。近距离散布更小，远距离更散。</p>
+<p><b>破坏</b> 重炮负责炮位、船帆和船壳结构破坏；炮位分前后两段，摧毁后炮管脱落且排队中的对应炮弹取消。轻武器只伤人员并造成短时压制。</p>
+<p><b>礁石</b> 能挡炮也能挡船，玩家和敌人使用相同碰撞规则。</p>
+<p><b>敌人</b> 三类敌舰都保留原战术职责，并拥有可见甲板船员。重炮攻击有预警与装填窗口，船员轻武器在装填期间仍持续交火。</p>
+<p><b>维修</b> R应急修理只有2次：恢复部分耐久、排水并封堵最严重的水线缺口，不会把旧洞从画面删除。</p>
+<p><b>验证目标</b> 拆出火力缺口后主动贴近或绕侧；也可以保持距离完成战斗。重点观察每次移动和目标选择是否能改变局面。</p>
+</div><button id="resume" class="dialog-main">继续战斗 →</button><button id="restart" class="dialog-secondary">重试本局</button><button id="layoutModal" class="dialog-secondary">更换布局</button></section></div>
+</main>
+<script src="combat.js"></script><script src="guard.js"></script>
+</body></html>
