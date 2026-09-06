@@ -1,0 +1,50 @@
+name: Deploy latest naval demo to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Rebuild latest source package
+        shell: bash
+        run: |
+          cat .deploy/source.part.* > /tmp/public_deck_guard_mode.zip
+          echo "18a5d7d6a514b814a652a3027f9bc19269498f1ff1a1b6bfa40e2bf3a750b09a  /tmp/public_deck_guard_mode.zip" | sha256sum -c -
+          rm -rf _site
+          mkdir -p _site/downloads
+          unzip -q /tmp/public_deck_guard_mode.zip -d _site
+          cp /tmp/public_deck_guard_mode.zip _site/downloads/public_deck_guard_mode.zip
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
