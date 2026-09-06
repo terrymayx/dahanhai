@@ -112,6 +112,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          git fetch origin main
+          git checkout -B main origin/main
+
           cp /tmp/latest_guard/index.html ./index.html
           cp /tmp/latest_guard/combat.js ./combat.js
           cp /tmp/latest_guard/guard.js ./guard.js
@@ -125,5 +129,5 @@ jobs:
           git add -A -- index.html combat.js guard.js style.css favicon.svg README_操作说明.txt legacy_v7.html game.js
           if ! git diff --cached --quiet; then
             git commit -m "chore: make latest deck guard demo the only online build"
-            git push origin HEAD:main
+            git push origin main
           fi
