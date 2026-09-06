@@ -29,6 +29,27 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Mobile swarm acceptance check (RED)
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          guard = Path('guard.js').read_text(encoding='utf-8')
+          css = Path('style.css').read_text(encoding='utf-8')
+          html = Path('index.html').read_text(encoding='utf-8')
+          checks = {
+              '12+ planned enemy craft': 'SWARM_TOTAL=14' in guard,
+              'up to five active enemy ships': 'MAX_ACTIVE_SHIPS=5' in guard,
+              'at most two boarding entrances preserved': 'MAX_OPEN=2' in guard,
+              'enemy count HUD': 'enemyCountLive' in html,
+              'mobile landscape touch layout': 'mobile-landscape-guard' in css,
+          }
+          failed = [name for name, ok in checks.items() if not ok]
+          if failed:
+              raise SystemExit('Expected RED: missing -> ' + ', '.join(failed))
+          print('All mobile swarm acceptance checks passed')
+          PY
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
