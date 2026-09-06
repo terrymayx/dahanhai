@@ -1,12 +1,15 @@
-name: Deploy latest naval demo to GitHub Pages
+name: Deploy latest deck guard demo to GitHub Pages
 
 on:
   push:
     branches: [main]
+    paths:
+      - '.deploy/**'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -23,22 +26,78 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
 
-      - name: Rebuild latest source package
+      - name: Build latest guard-only demo
         shell: bash
         run: |
+          set -euo pipefail
           cat .deploy/source.part.* > /tmp/public_deck_guard_mode.zip
           echo "18a5d7d6a514b814a652a3027f9bc19269498f1ff1a1b6bfa40e2bf3a750b09a  /tmp/public_deck_guard_mode.zip" | sha256sum -c -
-          rm -rf _site
-          mkdir -p _site/downloads
-          unzip -q /tmp/public_deck_guard_mode.zip -d _site
-          cp /tmp/public_deck_guard_mode.zip _site/downloads/public_deck_guard_mode.zip
+
+          rm -rf /tmp/latest_guard _site
+          mkdir -p /tmp/latest_guard _site/downloads
+          unzip -q /tmp/public_deck_guard_mode.zip -d /tmp/latest_guard
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('/tmp/latest_guard')
+
+          html = (root / 'index.html').read_text(encoding='utf-8')
+          html = re.sub(r'<nav class="mode-switch">.*?</nav>', '', html, flags=re.S)
+          html = html.replace('甲板守卫＋机动海战', '持续航行·甲板守卫')
+          html = html.replace(
+              '蔚蓝航路 2.5D 海战：持续航行·甲板守卫与机动海战双模式试玩。',
+              '蔚蓝航路 2.5D 海战：持续航行·甲板守卫在线试玩。'
+          )
+          html = re.sub(
+              r'<script src="combat\.js"></script><script>\(function\(\).*?</script>',
+              '<script src="combat.js"></script><script src="guard.js"></script>',
+              html,
+              flags=re.S,
+          )
+          html = html.replace(
+              '</head>',
+              '<meta name="build" content="deck-guard-latest-2026-09-07">\n</head>'
+          )
+          (root / 'index.html').write_text(html, encoding='utf-8')
+
+          guard = (root / 'guard.js').read_text(encoding='utf-8')
+          guard = guard.replace(
+              "if(tabs)tabs.innerHTML='<button class=\"active\">甲板守卫</button><button id=\"legacyModeBtn\">机动海战对照</button>';const legacy=$('legacyModeBtn');if(legacy)legacy.onclick=()=>location.href=location.pathname+'?mode=legacy';",
+              "if(tabs)tabs.innerHTML='<button class=\"active\">甲板守卫</button>';"
+          )
+          guard = guard.replace(
+              '<p><b>模式</b> 顶部“机动海战对照”可切回上一版自由机动战斗。</p>',
+              ''
+          )
+          guard = guard.replace(
+              '可以立即重玩或切回机动海战对照。',
+              '可以立即重玩继续挑战。'
+          )
+          (root / 'guard.js').write_text(guard, encoding='utf-8')
+
+          (root / 'game.js').unlink(missing_ok=True)
+          PY
+
+          cp /tmp/latest_guard/index.html _site/index.html
+          cp /tmp/latest_guard/combat.js _site/combat.js
+          cp /tmp/latest_guard/guard.js _site/guard.js
+          cp /tmp/latest_guard/style.css _site/style.css
+          cp /tmp/latest_guard/favicon.svg _site/favicon.svg
+          cp /tmp/latest_guard/README_操作说明.txt _site/README_操作说明.txt
           touch _site/.nojekyll
+
+          (cd /tmp/latest_guard && zip -q /tmp/latest_deck_guard_demo.zip index.html combat.js guard.js style.css favicon.svg README_操作说明.txt)
+          cp /tmp/latest_deck_guard_demo.zip _site/downloads/latest_deck_guard_demo.zip
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -48,3 +107,23 @@ jobs:
       - name: Deploy Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Sync latest demo to repository root
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp /tmp/latest_guard/index.html ./index.html
+          cp /tmp/latest_guard/combat.js ./combat.js
+          cp /tmp/latest_guard/guard.js ./guard.js
+          cp /tmp/latest_guard/style.css ./style.css
+          cp /tmp/latest_guard/favicon.svg ./favicon.svg
+          cp /tmp/latest_guard/README_操作说明.txt ./README_操作说明.txt
+          rm -f legacy_v7.html game.js
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A -- index.html combat.js guard.js style.css favicon.svg README_操作说明.txt legacy_v7.html game.js
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: make latest deck guard demo the only online build"
+            git push origin HEAD:main
+          fi
