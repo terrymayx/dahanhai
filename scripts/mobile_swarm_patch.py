@@ -1,0 +1,95 @@
+from pathlib import Path
+import re
+
+ROOT = Path(__file__).resolve().parents[1]
+html_path = ROOT / 'index.html'
+guard_path = ROOT / 'guard.js'
+css_path = ROOT / 'style.css'
+readme_path = ROOT / 'README_操作说明.txt'
+
+html = html_path.read_text(encoding='utf-8')
+html = re.sub(r'<meta name="build"[^>]*>\s*', '', html)
+html = html.replace('</head>', '<meta name="build" content="deck-guard-mobile-swarm-2026-09-07">\n</head>')
+old_stats = '<div class="ship-stats"><span>⚒ 修理 <b id="repairUses">2</b></span><span>⚑ <b id="kills">0</b> / <b id="enemyTotal">2</b></span></div>'
+new_stats = '<div class="ship-stats"><span>⚒ <b id="repairUses">2</b></span><span>⚑ <b id="kills">0</b>/<b id="enemyTotal">14</b></span><span class="enemy-live">⚔ 敌船 <b id="enemyCountLive">0</b></span></div>'
+if old_stats in html:
+    html = html.replace(old_stats, new_stats)
+elif 'enemyCountLive' not in html:
+    html = html.replace('<div class="ship-stats">', '<div class="enemy-fleet-badge">⚔ 敌船 <b id="enemyCountLive">0</b></div><div class="ship-stats">', 1)
+html_path.write_text(html, encoding='utf-8')
+
+guard = guard_path.read_text(encoding='utf-8')
+if 'MAX_ACTIVE_SHIPS=5' not in guard:
+    guard = guard.replace(
+        'const PLAYER_X=920, PLAYER_Y=1060, PLAYER_SCALE=1.75, AUTO_SPEED=105, VOLLEY_RELOAD=12, MAX_OPEN=2;',
+        'const PLAYER_X=920, PLAYER_Y=1060, PLAYER_SCALE=1.75, AUTO_SPEED=105, VOLLEY_RELOAD=12, MAX_OPEN=2, MAX_ACTIVE_SHIPS=5, SWARM_TOTAL=14;'
+    )
+
+waves = """const WAVES=[
+ {at:3,label:'双艇试探',spawns:[{type:'skiff',side:'upper'},{type:'skiff',side:'lower',delay:4}]},
+ {at:38,label:'小艇连续压迫',spawns:[{type:'skiff',side:'lower'},{type:'skiff',side:'upper',delay:5},{type:'skiff',side:'lower',delay:11}]},
+ {at:80,label:'掩护艇带队',spawns:[{type:'support',side:'upper'},{type:'skiff',side:'lower',delay:3},{type:'skiff',side:'upper',delay:10}]},
+ {at:125,label:'中艇突破',spawns:[{type:'medium',side:'upper'},{type:'skiff',side:'lower',delay:5}]},
+ {at:175,label:'大船压舷',spawns:[{type:'large',side:'lower'},{type:'skiff',side:'upper',delay:9}]},
+ {at:235,label:'小艇收尾围攻',spawns:[{type:'skiff',side:'upper'},{type:'skiff',side:'lower',delay:8}]}
+];"""
+guard, changed = re.subn(r'const WAVES=\[.*?\n\];(?=\nconst SHIP_CFG=)', waves, guard, count=1, flags=re.S)
+if changed != 1:
+    raise SystemExit('WAVES patch did not match exactly once')
+
+guard = guard.replace(
+    "skiff:{name:'快速运兵艇',hp:190,speed:150,crew:4,boarders:5,connectHp:85,size:.74,range:500}",
+    "skiff:{name:'快速运兵艇',hp:165,speed:155,crew:3,boarders:4,connectHp:72,size:.72,range:500}"
+)
+guard = guard.replace('deckEnemyCount()<=9&&state.openEntrances<2', 'deckEnemyCount()<=10&&state.openEntrances<MAX_OPEN')
+guard = guard.replace('activeThreats()<4', 'activeThreats()<MAX_ACTIVE_SHIPS')
+guard = guard.replace(
+    "$('enemyTotal').textContent=state.enemies.filter(e=>!e.removed).length;",
+    "$('enemyTotal').textContent=SWARM_TOTAL;const liveEnemy=$('enemyCountLive');if(liveEnemy)liveEnemy.textContent=activeThreats();"
+)
+guard = guard.replace(
+    "$('missionText').textContent=`第 ${Math.min(state.waveIndex+1,WAVES.length)} / ${WAVES.length} 波 · 甲板敌人 ${deckEnemyCount()} · 开放入口 ${openCount()}/${MAX_OPEN}`;",
+    "$('missionText').textContent=`第 ${Math.min(state.waveIndex+1,WAVES.length)} / ${WAVES.length} 波 · 海上敌船 ${activeThreats()}/${MAX_ACTIVE_SHIPS} · 甲板敌人 ${deckEnemyCount()} · 登船口 ${openCount()}/${MAX_OPEN}`;"
+)
+guard_path.write_text(guard, encoding='utf-8')
+
+css = css_path.read_text(encoding='utf-8')
+if '/* mobile-landscape-guard */' not in css:
+    css += r'''
+
+/* mobile-landscape-guard */
+.enemy-live{white-space:nowrap;color:#ffd98a}.enemy-live b{color:#ffb47d!important}
+@media (orientation:landscape) and (max-width:1100px), (orientation:landscape) and (max-height:540px){
+  html,body,#game{width:100%;height:100%;height:100dvh;min-height:0;overscroll-behavior:none}
+  #game{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+  .topbar{height:43px;padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right));z-index:8;background:linear-gradient(#052d3de8,#073545a8)}
+  .brand{gap:6px}.brand-icon{font-size:23px}.brand strong{font-size:14px;letter-spacing:1px}.brand small,.tag,.location{display:none}
+  .tools{gap:5px}.tools button{width:36px;height:36px;min-width:36px;min-height:36px;padding:0;font-size:17px}
+  .ship-card{top:48px;left:max(7px,env(safe-area-inset-left));width:158px;padding:7px 9px;border-radius:7px;z-index:5;background:#062f3bc7}
+  .ship-title{gap:7px}.ship-emblem{width:30px;height:30px;font-size:20px}.ship-title small{font-size:8px;letter-spacing:1px}.ship-title strong{font-size:13px;letter-spacing:1px}.level{display:none}
+  .hull-label,.flood-label{font-size:8px;margin:5px 0 3px}.bar{height:5px}.ship-stats{gap:6px;margin-top:6px;padding-top:5px;font-size:8px}.ship-stats b{font-size:10px;margin:0 1px}
+  .mission{top:48px;left:50%;width:230px;min-width:0;padding:0 6px;pointer-events:none}.mission small{display:none}.mission strong{font-size:13px;margin:2px 0}.mission span{font-size:9px;line-height:1.25}.scenario-tabs,.layout-tools{display:none!important}
+  .map-card,.wind,.bottom-center,.focus-panel,.move-hint{display:none!important}
+  .controls{left:max(9px,env(safe-area-inset-left));bottom:max(9px,env(safe-area-inset-bottom));z-index:9}
+  .defense-pad{width:154px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.defense-pad button,.defense-pad button:first-child,.defense-pad button:last-child{grid-column:auto;min-width:46px;min-height:46px;padding:7px 3px;border-radius:12px;font-size:11px;touch-action:manipulation}
+  .actions{right:max(8px,env(safe-area-inset-right));bottom:max(7px,env(safe-area-inset-bottom));gap:5px;z-index:9}.ability{width:60px;height:75px;gap:2px}.ability-icon{width:48px;height:48px;font-size:24px;border-width:2px}.ability strong{font-size:9px;margin-top:1px}.ability small{font-size:7px}.primary{width:78px;height:91px;margin-left:1px}.primary .ability-icon{width:64px;height:64px;font-size:34px}.primary strong{font-size:11px}.reload-meter{width:59px;height:4px}
+  #toast{bottom:88px;max-width:54vw;padding:6px 11px;font-size:10px;white-space:normal;text-align:center;z-index:8}
+  .debug-panel{top:48px;right:max(7px,env(safe-area-inset-right));width:min(285px,42vw);max-height:calc(100dvh - 118px);z-index:10}
+  .edge-vignette{inset:43px 0 0}
+}
+@media (orientation:landscape) and (max-height:420px){
+  .ship-card{width:145px;padding:5px 7px}.ship-title small,.flood-label{display:none}.ship-emblem{width:26px;height:26px}.hull-label{margin:3px 0 2px}.ship-stats{margin-top:4px;padding-top:3px}
+  .mission{width:205px}.mission strong{font-size:11px}.mission span{font-size:8px}
+  .defense-pad{width:144px}.defense-pad button,.defense-pad button:first-child,.defense-pad button:last-child{min-width:44px;min-height:44px;font-size:10px}
+  .ability{width:55px;height:68px}.ability-icon{width:44px;height:44px}.primary{width:70px;height:84px}.primary .ability-icon{width:58px;height:58px}
+}
+'''
+css_path.write_text(css, encoding='utf-8')
+
+if readme_path.exists():
+    text = readme_path.read_text(encoding='utf-8')
+    if '【手机横屏围攻版】' not in text:
+        text += '\n\n【手机横屏围攻版】\n- 本局计划14艘敌船，其中11艘为快速运兵小艇。\n- 同时活跃敌船最多5艘，但真实登船入口仍最多2个。\n- 手机横屏：左下调预备队，右下舰炮/维修，中央甲板尽量无遮挡。\n'
+        readme_path.write_text(text, encoding='utf-8')
+
+print('patched mobile swarm guard demo')
