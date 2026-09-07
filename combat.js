@@ -5,6 +5,20 @@ const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
 const C={
   clamp,
   wrap,
+  guardApproachStage(distance){
+    const d=Math.max(0,Number(distance)||0);
+    return d>330?'ranged':d>170?'closing':'align';
+  },
+  guardApproachSpeed(type,distance){
+    const base={skiff:102,support:88,medium:78,large:62}[type]||82;
+    const stage=this.guardApproachStage(distance);
+    return base*(stage==='ranged'?1:stage==='closing'?.72:.44);
+  },
+  crewMotionOffset(id,time,role='shooter'){
+    const phase=(Number(id)||0)*1.61803398875, t=Math.max(0,Number(time)||0);
+    const amp=role==='melee'?3.6:role==='enemy'?2.5:2.9;
+    return{x:Math.sin(t*1.55+phase)*amp,y:Math.cos(t*1.23+phase*.73)*amp*.7};
+  },
   inArc(angle, dx, dy) { const d=Math.hypot(dx,dy);return d>0 && Math.abs((Math.cos(angle)*dx+Math.sin(angle)*dy)/d)<0.72; },
   segmentHit(ax,ay,bx,by,x,y,r) { return this.segmentCircleFirst(ax,ay,bx,by,x,y,r)!==null; },
   segmentCircleFirst(ax,ay,bx,by,cx,cy,r){
@@ -36,7 +50,7 @@ const C={
     for(let i=0;i<poly.length;i++){
       const c=poly[i],d=poly[(i+1)%poly.length],sx=d[0]-c[0],sy=d[1]-c[1],den=rx*sy-ry*sx;
       if(Math.abs(den)<1e-9)continue;
-      const qx=c[0]-ax,qy=c[1]-ay,t=(qx*sy-qy*sx)/den,u=(qx*ry-qy*rx)/den;
+      const qx=c[0]-ax,qy=c[1]-ay,t=(qx*sy-qy*rx)/den,u=(qx*ry-qy*rx)/den;
       if(t>=0&&t<=1&&u>=0&&u<=1&&(best===null||t<best))best=t;
     }
     if(best===null&&this.pointInPolygon(bx,by,poly))return 1;
