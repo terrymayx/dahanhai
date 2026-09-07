@@ -24,6 +24,7 @@
 - 新增 `tests/deck_guard_approach.test.js`，检查接近阶段、速度排序、近靠舷减速、船员局部移动以及当前 `guard.js` 是否真实调用这些规则。
 - 新增 `Deck Guard Regression` 工作流，执行 `combat.js` / `guard.js` 语法检查和本轮行为回归测试。
 - GitHub Pages 改为直接从仓库根目录当前源码构建；部署阶段不再运行旧补丁脚本，也不再由机器人修改并回推游戏源码。
+- `scripts/mobile_swarm_patch.py` 已退役为只读兼容检查，不再改写游戏文件。
 - 在线试玩与 `latest_deck_guard_demo.zip` 由同一次 Pages 构建生成。
 
 ### 仍需真人试玩调整
