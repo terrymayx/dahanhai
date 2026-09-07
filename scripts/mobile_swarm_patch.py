@@ -4,7 +4,6 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 html_path = ROOT / 'index.html'
 guard_path = ROOT / 'guard.js'
-css_path = ROOT / 'style.css'
 readme_path = ROOT / 'README_操作说明.txt'
 
 
@@ -18,47 +17,30 @@ def replace_section(text, start_marker, end_marker, replacement):
     return text[:start] + replacement.rstrip() + '\n' + text[end:]
 
 
-# Build marker.
 html = html_path.read_text(encoding='utf-8')
 html = re.sub(r'<meta name="build"[^>]*>\s*', '', html)
-html = html.replace('</head>', '<meta name="build" content="deck-guard-mass-crew-10x-2026-09-07">\n</head>')
+html = html.replace('</head>', '<meta name="build" content="deck-guard-ranged-approach-2026-09-07">\n</head>')
 html_path.write_text(html, encoding='utf-8')
 
 guard = guard_path.read_text(encoding='utf-8')
+if 'ALLIED_SHOOTERS=60' not in guard or 'ALLIED_DEFENDERS=60' not in guard:
+    raise SystemExit('expected 10x mass-crew source before ranged-approach migration')
 
-# Replace the whole constants line so this is idempotent on old and generated builds.
-guard = re.sub(
-    r'^const PLAYER_X=.*?;$',
-    "const PLAYER_X=920, PLAYER_Y=1060, PLAYER_SCALE=1.75, AUTO_SPEED=105, VOLLEY_RELOAD=12, MAX_OPEN=2, MAX_ACTIVE_SHIPS=5, SWARM_TOTAL=14, ALLIED_SHOOTERS=60, ALLIED_DEFENDERS=60, ACTIVE_BOARDER_CAP=220, DECK_PRESSURE_LIMIT=140;",
-    guard,
-    count=1,
-    flags=re.M,
-)
-if 'ALLIED_SHOOTERS=60' not in guard:
-    raise SystemExit('constants patch failed')
-
-# 60 ranged crew: 40 bow + 20 musket, spread over five readable deck rows.
-shooters = """const SHOOTERS=Array.from({length:ALLIED_SHOOTERS},(_,i)=>{
- const cols=12,row=Math.floor(i/cols),col=i%cols;
- return{kind:i%3===2?'musket':'bow',x:-132+col*20.5+(row%2?5:0),y:-34+row*17};
-});"""
-guard = replace_section(guard, 'const SHOOTERS=', 'const WAVES=', shooters)
-
-# Enemy visible crew and finite boarding roster are exactly 10x the prior build.
 ship_cfg = """const SHIP_CFG={
- skiff:{name:'快速运兵艇',hp:165,speed:155,crew:30,boarders:40,connectHp:72,size:.72,range:500},
- support:{name:'远程掩护艇',hp:170,speed:125,crew:50,boarders:20,connectHp:70,size:.78,range:590,support:true},
- medium:{name:'中型运兵船',hp:330,speed:112,crew:50,boarders:80,connectHp:115,size:.9,range:560},
- large:{name:'大型登船舰',hp:540,speed:88,crew:70,boarders:140,connectHp:125,size:1.08,range:600,connections:2}
-};"""
+ skiff:{name:'快速运兵艇',hp:165,speed:102,crew:30,boarders:40,connectHp:72,size:.72,range:780},
+ support:{name:'远程掩护艇',hp:170,speed:88,crew:50,boarders:20,connectHp:70,size:.78,range:920,support:true},
+ medium:{name:'中型运兵船',hp:330,speed:78,crew:50,boarders:80,connectHp:115,size:.9,range:850},
+ large:{name:'大型登船舰',hp:540,speed:62,crew:70,boarders:140,connectHp:125,size:1.08,range:900,connections:2}
+};
+const LIGHT_RANGE={bow:720,musket:820};"""
 guard = replace_section(guard, 'const SHIP_CFG=', 'let width=', ship_cfg)
 
-# 60 melee crew: 20 fixed upper, 20 fixed lower, 20 actual moving reserve.
+# Give all player melee crew stable homes; their visible movement is a small local patrol around those homes.
 player_block = """function makeDefender(i,side,reserve=false){
  const group=reserve?i-40:side==='lower'?i-20:i;let x,y;
  if(reserve){x=-86+(group%10)*18;y=Math.floor(group/10)===0?-15:15;}
  else{x=-96+(group%10)*20;const row=Math.floor(group/10);y=(side==='upper'?-1:1)*(45-row*12);}
- return{id:'pD'+i,team:'player',kind:'melee',lx:x,ly:y,x,y,hp:72,maxHp:72,alive:true,down:false,reserve,zone:reserve?'center':side,targetZone:reserve?'center':side,cd:.2+(i%10)*.045,action:'idle',timer:0,facing:0,role:'melee',rescue:0};
+ return{id:'pD'+i,team:'player',kind:'melee',lx:x,ly:y,homeLx:x,homeLy:y,motionId:i,x,y,hp:72,maxHp:72,alive:true,down:false,reserve,zone:reserve?'center':side,targetZone:reserve?'center':side,cd:.2+(i%10)*.045,action:'idle',timer:0,facing:0,role:'melee',rescue:0};
 }
 function playerShip(){
  const p={id:0,team:'player',x:PLAYER_X,y:PLAYER_Y,a:0,hp:520,maxHp:520,water:0,sail:100,sink:0,dead:false,gunHp:{upper:150,lower:150},gunMax:150,breaches:[],recoil:{upper:0,lower:0}};
@@ -68,115 +50,113 @@ function playerShip(){
 }"""
 guard = replace_section(guard, 'function makeDefender(', 'function enemyCrew(', player_block)
 
-# Enemy deck crew grid avoids putting 30-70 ranged crew on the same pixels.
+guard = guard.replace(
+    "function makeShooter(i){const b=SHOOTERS[i];return{id:'pS'+i,team:'player',kind:b.kind,lx:b.x,ly:b.y,homeLx:b.x,homeLy:b.y,x:b.x,y:b.y,hp:b.kind==='musket'?38:31,maxHp:b.kind==='musket'?38:31,alive:true,cd:.15+i*(b.kind==='bow'?.21:.37),action:'idle',timer:0,facing:0,recoil:0,role:'shooter'};}",
+    "function makeShooter(i){const b=SHOOTERS[i];return{id:'pS'+i,team:'player',kind:b.kind,lx:b.x,ly:b.y,homeLx:b.x,homeLy:b.y,motionId:i,x:b.x,y:b.y,hp:b.kind==='musket'?38:31,maxHp:b.kind==='musket'?38:31,alive:true,cd:.15+i*(b.kind==='bow'?.21:.37),action:'idle',timer:0,facing:0,recoil:0,role:'shooter'};}"
+)
+if 'motionId:i' not in guard:
+    raise SystemExit('player shooter motion patch failed')
+
 enemy_crew = """function enemyCrew(ship,i){
  const kind=i%3===2?'musket':'bow',cols=10,row=Math.floor(i/cols),col=i%cols;
- return{id:`e${ship.id}c${i}`,team:'enemy',kind,hp:kind==='musket'?28:24,maxHp:kind==='musket'?28:24,alive:true,cd:.18+(i%9)*.055,lx:-82+col*18+(row%2?4:0),ly:clamp(-32+row*10,-34,34),facing:Math.PI,action:'idle',timer:0,recoil:0};
+ const lx=-82+col*18+(row%2?4:0),ly=clamp(-32+row*10,-34,34);
+ return{id:`e${ship.id}c${i}`,team:'enemy',kind,hp:kind==='musket'?28:24,maxHp:kind==='musket'?28:24,alive:true,cd:.18+(i%9)*.055,lx,ly,homeLx:lx,homeLy:ly,motionId:i,facing:Math.PI,action:'idle',timer:0,recoil:0};
 }"""
 guard = replace_section(guard, 'function enemyCrew(', 'function roster(', enemy_crew)
 
-roster = """function roster(type,n){
- const arr=[];
- for(let i=0;i<n;i++){
-  let kind='assault';
-  if(type==='large'){if(i<28)kind='shield';else if(i%7===0)kind='breaker';}
-  else if(type==='medium'){if(i<12)kind='shield';else if(i%6===0)kind='breaker';}
-  else if(type==='skiff'){if(i<8)kind='shield';else if(i%9===0)kind='breaker';}
-  else if(type==='support'){if(i<4)kind='shield';else if(i%5===0)kind='breaker';}
-  arr.push(kind);
+# Spawn farther away so the approach is readable and supports a real ranged-combat window.
+guard = re.sub(
+    r"function makeEnemy\(type,side,spawnOffset=0\)\{const cfg=SHIP_CFG\[type\],sign=side==='upper'\?-1:1,x=PLAYER_X\+980\+spawnOffset,y=PLAYER_Y\+sign\*390;const ship=\{",
+    "function makeEnemy(type,side,spawnOffset=0){const cfg=SHIP_CFG[type],sign=side==='upper'?-1:1,x=PLAYER_X+1180+spawnOffset,y=PLAYER_Y+sign*410;const ship={",
+    guard,
+    count=1,
+)
+guard = guard.replace("side,phase:'approach',phaseTime:0,", "side,phase:'approach',approachStage:'ranged',phaseTime:0,")
+if "approachStage:'ranged'" not in guard:
+    raise SystemExit('enemy approach stage patch failed')
+
+approach_fn = """function updateEnemyShip(ship,dt){
+ if(ship.removed)return;
+ if(ship.sinking){ship.sinkTimer+=dt;ship.sink=clamp(ship.sinkTimer/3.5,0,1);ship.x-=35*dt;if(Math.random()<dt*8)splash(ship.x+rand(-60,60),ship.y+rand(-28,28));if(ship.sink>=1){ship.removed=true;state.metrics.shipsSunk++;}return;}
+ ship.tagTime=Math.max(0,ship.tagTime-dt);ship.fireCd-=dt;const sign=ship.side==='upper'?-1:1;
+ updateEnemyCrewMotion(ship,dt);
+ if(ship.phase==='approach'){
+  const tx=PLAYER_X+120+(ship.type==='support'?240:0),ty=PLAYER_Y+sign*(ship.type==='support'?305:210);
+  const dx=tx-ship.x,dy=ty-ship.y,d=Math.hypot(dx,dy)||1;
+  ship.approachStage=C.guardApproachStage(d);
+  const v=C.guardApproachSpeed(ship.type,d);
+  ship.x+=dx/d*v*dt;ship.y+=dy/d*v*dt;
+  ship.a=C.rotateToward(ship.a,0,dt*.72);
+  if(d<58){ship.phase=ship.cfg.support?'support':'align';ship.phaseTime=0;}
  }
- return arr;
-}"""
-guard = replace_section(guard, 'function roster(', 'let nextShipId=', roster)
-
-# Stagger starting positions so the enlarged bridge queue is readable.
-boarder = """function makeBoarder(ship,conn,kind,index){
- const sign=ship.side==='upper'?-1:1,lane=((index%8)-3.5)*4.5;
- const start=worldLocal(ship,-38+(index%6)*11+conn.offset*.35,-sign*(48+lane*.22));
- return{id:nextUnitId++,team:'enemy',kind,shipId:ship.id,connectionId:conn.id,state:'enemyDeck',x:start.x,y:start.y,z:30,lx:0,ly:0,hp:kind==='shield'?92:kind==='breaker'?62:55,maxHp:kind==='shield'?92:kind==='breaker'?62:55,cd:rand(.2,.6),facing:Math.PI,progress:0,dead:false,fall:false,prep:0,targetFacility:null,hitFlash:0};
-}"""
-guard = replace_section(guard, 'function makeBoarder(', 'function stats(', boarder)
-
-# Larger crowds should not block later waves at the old ten-enemy threshold.
-guard = guard.replace('deckEnemyCount()<=10&&state.openEntrances<MAX_OPEN', 'deckEnemyCount()<=DECK_PRESSURE_LIMIT&&state.openEntrances<MAX_OPEN')
-
-# 8 bridge lanes on normal ships, 12 on large ships, with a hard active-boarder budget.
-boarding_fn = """function updateConnectionBoarding(ship,conn,dt){
- if(conn.broken||!conn.open)return;
- conn.spawnCd-=dt;
- let activeBoarders=0,inTransit=0;
- for(const b of state.boarders){
-  if(b.dead)continue;
-  if(b.state==='enemyDeck'||b.state==='crossing'||b.state==='deck')activeBoarders++;
-  if(b.connectionId===conn.id&&(b.state==='enemyDeck'||b.state==='crossing'))inTransit++;
+ else if(ship.phase==='align'){
+  ship.approachStage='align';ship.phaseTime+=dt;
+  ship.x+=(PLAYER_X+80-ship.x)*dt*.42;ship.y+=(PLAYER_Y+sign*210-ship.y)*dt*.4;
+  if(ship.phaseTime>1.65){const possible=ship.connections.find(c=>!c.broken&&c.phase==='idle');if(possible&&C.connectionOpenAllowed(openCount(possible),MAX_OPEN)){possible.phase='building';ship.phase='connect';ship.phaseTime=0;toast(ship.cfg.name+' 开始建立'+(ship.side==='upper'?'上舷':'下舷')+'连接',1.7);}else ship.phase='waiting';}
  }
- if(activeBoarders>=ACTIVE_BOARDER_CAP){conn.spawnCd=Math.max(conn.spawnCd,.12);return;}
- const lanes=ship.type==='large'?12:8;
- if(conn.spawnCd<=0&&ship.remaining>0&&inTransit<lanes){
-  const kind=ship.boarderRoster[ship.launched]||'assault',b=makeBoarder(ship,conn,kind,ship.launched);
-  state.boarders.push(b);ship.launched++;ship.remaining--;
-  conn.spawnCd=ship.type==='large'?.11:.14;
+ else if(ship.phase==='waiting'){ship.approachStage='waiting';ship.x+=Math.sin(state.time*.8+ship.id)*5*dt;ship.y+=(PLAYER_Y+sign*285-ship.y)*dt*.32;if(C.connectionOpenAllowed(openCount(),MAX_OPEN)){ship.phase='align';ship.phaseTime=0;}}
+ else if(ship.phase==='connect'||ship.phase==='boarding'){
+  ship.approachStage='alongside';ship.x+=(PLAYER_X+80-ship.x)*dt*.5;ship.y+=(PLAYER_Y+sign*210-ship.y)*dt*.5;let any=false;
+  for(const c of ship.connections){if(c.broken)continue;if(c.phase==='building'){c.progress=C.boardingAdvance(c.progress,dt,2.25+(ship.type==='large'?0.6:0));if(c.progress>=1){c.phase='open';c.open=true;state.openEntrances=openCount();ship.phase='boarding';c.spawnCd=.25;toast('跳板已架好 · '+(ship.side==='upper'?'上舷':'下舷')+'开始登船',1.5);}any=true;}else if(c.open){any=true;updateConnectionBoarding(ship,c,dt);}}
+  if(ship.phase==='boarding'&&ship.type==='large'&&ship.connections.length>1){const second=ship.connections[1];if(!second.broken&&second.phase==='idle'&&ship.launched>=28&&C.connectionOpenAllowed(openCount(),MAX_OPEN)){second.phase='building';second.progress=0;toast('大型登船舰准备第二处连接',1.4);}}
+  if(!any||ship.remaining<=0&&ship.connections.every(c=>c.crossing.length===0)){for(const c of ship.connections){if(!c.broken){c.open=false;c.phase='idle';c.progress=0;}}ship.phase='withdraw';ship.phaseTime=0;}
+ }
+ else if(ship.phase==='support'){ship.approachStage='ranged';ship.x+=(PLAYER_X+300-ship.x)*dt*.22;ship.y+=(PLAYER_Y+sign*300-ship.y)*dt*.22;if(ship.hp<ship.maxHp*.45)ship.phase='withdraw';}
+ else if(ship.phase==='withdraw'){ship.approachStage='withdraw';ship.phaseTime+=dt;ship.x+=125*dt;ship.y+=sign*24*dt;if(ship.x>PLAYER_X+1250)ship.removed=true;}
+ const range=Math.hypot(ship.x-PLAYER_X,ship.y-PLAYER_Y);
+ if(!ship.sinking&&ship.phase!=='withdraw'&&ship.fireCd<=0&&range<ship.cfg.range){const rangedCadence=ship.approachStage==='ranged'?rand(.26,.46):rand(.3,.52);ship.fireCd=rangedCadence;enemyLightFire(ship);}
+}"""
+guard = replace_section(guard, 'function updateEnemyShip(', 'function updateConnectionBoarding(', approach_fn)
+
+# Enemy deck crew now walk subtly around their posts, turn toward the player, and visibly animate when firing.
+enemy_fire = """function updateEnemyCrewMotion(ship,dt){
+ for(const c of ship.crew){if(!c.alive)continue;c.recoil=Math.max(0,(c.recoil||0)-dt);if(c.timer>0){c.timer-=dt;if(c.timer<=0)c.action='idle';}
+  const off=C.crewMotionOffset(c.motionId,state.time,'enemy'),goal={x:c.homeLx+off.x,y:c.homeLy+off.y};
+  const mv=C.reserveStep({x:c.lx,y:c.ly},goal,c.action==='fire'?8:14,dt);c.lx=mv.x;c.ly=mv.y;
+  if(c.action!=='fire'){const from=worldLocal(ship,c.lx,c.ly);c.facing=Math.atan2(PLAYER_Y-from.y,PLAYER_X-from.x);}
+ }
+}
+function enemyLightFire(ship){const crew=ship.crew.filter(c=>c.alive);if(!crew.length)return;const c=crew[Math.floor(Math.random()*crew.length)],from=worldLocal(ship,c.lx,c.ly),targets=[...state.player.shooters,...state.player.defenders].filter(u=>u.alive&&!u.down);if(!targets.length)return;let t=null,bd=Infinity;for(const u of targets){const dd=threatDistance(ship,u);if(dd<bd){bd=dd;t=u;}}if(!t)return;const to=worldLocal(state.player,t.lx,t.ly);c.facing=Math.atan2(to.y-from.y,to.x-from.x);c.action='fire';c.timer=c.kind==='musket'?.22:.16;c.recoil=c.kind==='musket'?.18:.08;spawnLight(c.kind,from,to,true,{ship,crew:c,target:t});}"""
+guard = replace_section(guard, 'function enemyLightFire(', 'function threatDistance(', enemy_fire)
+
+shooters_fn = """function updateShooters(dt){for(const s of state.player.shooters){if(!s.alive)continue;const closeThreat=state.boarders.find(b=>!b.dead&&b.state==='deck'&&Math.hypot(b.lx-s.lx,b.ly-s.ly)<34);const off=C.crewMotionOffset(s.motionId,state.time,'shooter'),idlePost={x:s.homeLx+off.x,y:s.homeLy+off.y};if(closeThreat){const retreat={x:Math.max(-145,s.homeLx-30),y:clamp(s.homeLy*.55,-28,28)},mv=C.reserveStep({x:s.lx,y:s.ly},retreat,36,dt);s.lx=mv.x;s.ly=mv.y;}else if(Math.hypot(s.lx-idlePost.x,s.ly-idlePost.y)>.6){const mv=C.reserveStep({x:s.lx,y:s.ly},idlePost,18,dt);s.lx=mv.x;s.ly=mv.y;}s.cd-=dt;s.recoil=Math.max(0,s.recoil-dt);if(s.action!=='idle'){s.timer-=dt;if(s.timer<=0){if(s.action==='aim'){const from=worldLocal(state.player,s.lx,s.ly),t=nearestPlayerTarget(from),range=LIGHT_RANGE[s.kind]||700;if(t&&Math.hypot(t.x-from.x,t.y-from.y)<range&&!blockedLight(from,t)){s.facing=Math.atan2(t.y-from.y,t.x-from.x);spawnLight(s.kind,from,{x:t.x,y:t.y,z:t.z||30},false,{target:t,shooter:s});s.action='fire';s.timer=s.kind==='bow'?.14:.16;s.recoil=s.kind==='musket'?.16:0;}else{s.action='idle';s.cd=.2;}}else{s.action='idle';s.cd=s.kind==='bow'?rand(.85,1.3):rand(1.75,2.55);}}continue;}if(s.cd<=0){const from=worldLocal(state.player,s.lx,s.ly),near=nearestPlayerTarget(from),range=LIGHT_RANGE[s.kind]||700;if(near&&Math.hypot(near.x-from.x,near.y-from.y)<range){const localThreat=state.boarders.some(b=>!b.dead&&b.state==='deck'&&Math.hypot(b.lx-s.lx,b.ly-s.ly)<30);if(localThreat){s.cd=.55;continue;}s.action='aim';s.timer=s.kind==='bow'?.25:.31;}else s.cd=.22;}}
+}"""
+guard = replace_section(guard, 'function updateShooters(', 'function blockedLight(', shooters_fn)
+
+# Every melee defender has a real local patrol target. The 20 reserve crew form a visible 5x4 reinforcement block instead of one point.
+defenders_fn = """function defenderPost(d){
+ const off=C.crewMotionOffset(d.motionId,state.time,'melee');
+ if(!d.reserve)return{x:d.homeLx+off.x*.32,y:d.homeLy+off.y*.32};
+ const idx=Math.max(0,d.motionId-40),col=idx%5,row=Math.floor(idx/5),base=DEF_ZONES[d.targetZone]||DEF_ZONES.center;
+ const sx=(col-2)*11,sy=(row-1.5)*8;
+ return{x:base.x+sx+off.x*.2,y:clamp(base.y+sy+off.y*.2,-51,51)};
+}
+function updateDefenders(dt){for(const d of state.player.defenders){if(d.down){d.rescue+=dt;if(d.rescue>8&&safeAround(d)){d.down=false;d.alive=true;d.hp=Math.max(28,d.maxHp*.42);d.rescue=0;floatText(...Object.values(worldLocal(state.player,d.lx,d.ly)),'救起','#9fe4b7',12);}continue;}if(!d.alive)continue;d.cd=Math.max(0,d.cd-dt);if(d.action==='hit'||d.action==='attack'){d.timer-=dt;if(d.timer<=0)d.action='idle';}
+  const targetPos=defenderPost(d);let close=null,closeD=Infinity;for(const e of state.boarders){if(e.dead||e.state!=='deck')continue;const dd=Math.hypot(e.lx-d.lx,e.ly-d.ly);if(dd<closeD){closeD=dd;close=e;}}
+  let u=closeD<31?close:null;
+  if(!u&&state.targetBoarderId){const manual=state.boarders.find(e=>e.id===state.targetBoarderId&&!e.dead&&e.state==='deck')||null;if(manual&&Math.hypot(manual.lx-d.lx,manual.ly-d.ly)<48)u=manual;}
+  if(!u&&closeD<48)u=close;
+  if(u&&Math.hypot(u.lx-d.lx,u.ly-d.ly)<29){d.facing=Math.atan2(u.ly-d.ly,u.lx-d.lx);if(d.cd<=0){u.hp=Math.max(0,u.hp-16);u.prep=0;d.cd=.68;d.action='attack';d.timer=.18;floatText(u.x,u.y,16,'#dff0cf',10,'melee'+u.id);if(u.hp<=0){u.dead=true;u.state='dead';state.metrics.boardersKilled++;}}}
+  else{const mv=C.reserveStep({x:d.lx,y:d.ly},targetPos,d.reserve?52:18,dt);d.lx=mv.x;d.ly=mv.y;}
  }
 }"""
-guard = replace_section(guard, 'function updateConnectionBoarding(', 'function enemyLightFire(', boarding_fn)
+guard = replace_section(guard, 'function updateDefenders(', 'function safeAround(', defenders_fn)
 
-# Let the first bridge establish a crowd before a large ship opens the second.
-guard = guard.replace('ship.launched>=4&&C.connectionOpenAllowed', 'ship.launched>=28&&C.connectionOpenAllowed')
+# Draw enemy deck crew with visible facing/weapon motion rather than static dots only.
+draw_enemy = """function drawEnemyCrew(ship){for(const c of ship.crew){const p=worldLocal(ship,c.lx,c.ly),q=project(p.x,p.y,31),sz=4.2*scale*(ship.cfg?.size||1);ctx.fillStyle=c.alive?'#c84d43':'#5b3b35';ctx.beginPath();ctx.arc(q.x,q.y,sz,0,TAU);ctx.fill();if(c.alive){const len=c.kind==='musket'?16:12,end=project(p.x+Math.cos(c.facing)*len,p.y+Math.sin(c.facing)*len,32);ctx.strokeStyle=c.kind==='musket'?'#2b3033':'#70442a';ctx.lineWidth=(c.kind==='musket'?2.2:1.5)*scale;ctx.beginPath();ctx.moveTo(q.x,q.y);ctx.lineTo(end.x,end.y);ctx.stroke();if(c.action==='fire'&&c.kind==='musket'){ctx.fillStyle='#ffd27a';ctx.beginPath();ctx.arc(end.x,end.y,2.4*scale,0,TAU);ctx.fill();}}}}"""
+guard = replace_section(guard, 'function drawEnemyCrew(', 'function drawDeckObstacles(', draw_enemy)
 
-# Five enemy ships can now have 30-70 visible shooters each. Fire by ship cadence, not all crew simultaneously.
-guard = guard.replace("ship.fireCd=rand(1.35,2.3);enemyLightFire(ship);", "ship.fireCd=rand(.22,.38);enemyLightFire(ship);")
-guard = re.sub(r'fireCd:\.8\+rand\(0,\.8\)', 'fireCd:.18+rand(0,.45)', guard)
-
-# O(n) targeting avoids repeated full-array sorts with hundreds of people.
-nearest_target = """function nearestPlayerTarget(from){
- const deck=state.boarders.filter(b=>!b.dead&&(b.state==='crossing'||b.state==='deck'));
- if(state.targetBoarderId){const m=deck.find(b=>b.id===state.targetBoarderId);if(m)return m;}
- let best=null,bd=Infinity;
- for(const b of deck){const dx=b.x-from.x,dy=b.y-from.y,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best=b;}}
- if(best)return best;
- for(const s of state.enemies)if(!s.removed&&!s.sinking)for(const c of s.crew)if(c.alive){const p=worldLocal(s,c.lx,c.ly),dx=p.x-from.x,dy=p.y-from.y,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best={ship:s,crew:c,x:p.x,y:p.y,z:36,remote:true};}}
- return best;
-}"""
-guard = replace_section(guard, 'function nearestPlayerTarget(', 'function updateShooters(', nearest_target)
-
-nearest_def = """function nearestDefender(u){
- let best=null,bd=Infinity;
- for(const d of state.player.defenders){if(!d.alive||d.down)continue;const dx=d.lx-u.lx,dy=d.ly-u.ly,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best=d;}}
- return best;
-}"""
-guard = replace_section(guard, 'function nearestDefender(', 'const DECK_OBSTACLES=', nearest_def)
-
-old_def_line = "const enemies=state.boarders.filter(u=>!u.dead&&u.state==='deck').sort((a,b)=>Math.hypot(a.lx-d.lx,a.ly-d.ly)-Math.hypot(b.lx-d.lx,b.ly-d.ly));const u=(state.targetBoarderId&&enemies.find(e=>e.id===state.targetBoarderId))||enemies[0];"
-new_def_line = "let u=null,bd=Infinity;if(state.targetBoarderId)u=state.boarders.find(e=>e.id===state.targetBoarderId&&!e.dead&&e.state==='deck')||null;if(!u){for(const e of state.boarders){if(e.dead||e.state!=='deck')continue;const dx=e.lx-d.lx,dy=e.ly-d.ly,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;u=e;}}}"
-if old_def_line in guard:
-    guard = guard.replace(old_def_line, new_def_line)
-elif new_def_line not in guard:
-    raise SystemExit('updateDefenders target patch failed')
-
-# UI copy matches the new reserve size.
-guard = guard.replace('只移动2名预备近战', '只移动20名预备近战')
-guard = guard.replace('调动2名预备近战', '调动20名预备近战')
-guard = guard.replace('点击上舷／中央／下舷调动2名预备近战', '点击上舷／中央／下舷调动20名预备近战')
+# Small UI copy update: the player should understand that incoming ships fight before docking.
+guard = guard.replace('射手拦截 → 靠舷登船 → 调动预备队 → 重炮断援', '远程交火 → 敌船逼近 → 靠舷登船 → 调兵守甲板 → 重炮断援')
+guard = guard.replace('持续航行 · 守住上下船舷，重炮留给关键增援', '持续航行 · 先远程交火，敌船会逐步逼近再靠舷')
 
 guard_path.write_text(guard, encoding='utf-8')
 
-css = css_path.read_text(encoding='utf-8')
-if '/* mass-crew-10x */' not in css:
-    css += r'''
-
-/* mass-crew-10x */
-@media (orientation:landscape) and (max-width:1100px), (orientation:landscape) and (max-height:540px){
-  .enemy-live{display:inline-flex;align-items:center;gap:2px}
-  .ship-card{background:#062f3bb8}
-  #toast{pointer-events:none}
-}
-'''
-css_path.write_text(css, encoding='utf-8')
-
 if readme_path.exists():
     text = readme_path.read_text(encoding='utf-8')
-    if '【10倍人海守船版】' not in text:
-        text += '\n\n【10倍人海守船版】\n- 我方可见战斗船员从12人提升到120人：60名射手 + 60名近战（含20名预备队）。\n- 敌方各船甲板/登船人员按原配置至少10倍：小艇30远程+40登船，中船50+80，大船70+140。\n- 同时活跃登船人员设220上限；每个入口8条轻量通行槽，大船12条，保持人海感同时控制手机成本。\n- 仍只允许最多2个主要登船入口，重炮、预备队调度和守入口仍然决定战局。\n'
+    marker='【远程交火接近版】'
+    if marker not in text:
+        text += '\n\n'+marker+'\n- 敌船从更远处出现，按小艇/中船/大船不同速度逐步逼近，不再高速冲到船边。\n- 接近分为远程交火、减速闭合、靠舷调整三个阶段；通常在靠舷前会有数秒持续箭火与火枪战。\n- 我方60名射手、60名近战及敌舰远程船员都有轻量甲板移动；预备队到达防区后形成分散队形。\n- 敌舰靠舷后继续保持相对位置，跳板和登船流程保持原规则。\n'
         readme_path.write_text(text, encoding='utf-8')
 
-print('patched 10x mass-crew deck guard demo')
+print('patched paced ranged approach and moving deck crew')
