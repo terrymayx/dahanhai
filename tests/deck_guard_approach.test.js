@@ -1,4 +1,6 @@
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const C = require('../combat.js');
 
 assert.strictEqual(typeof C.guardApproachSpeed, 'function', 'guardApproachSpeed should exist');
@@ -25,5 +27,13 @@ const b = C.crewMotionOffset(7, 1.75, 'shooter');
 assert(Number.isFinite(a.x) && Number.isFinite(a.y));
 assert(Math.abs(a.x) <= 5 && Math.abs(a.y) <= 5, 'crew motion must remain a small deck-local movement');
 assert(a.x !== b.x || a.y !== b.y, 'crew should visibly move over time');
+
+const guard = fs.readFileSync(path.join(__dirname, '..', 'guard.js'), 'utf8');
+assert(guard.includes('C.guardApproachSpeed(ship.type,d)'), 'active enemy approach should use paced speed helper');
+assert(guard.includes('ship.approachStage=C.guardApproachStage(d)'), 'active enemy ships should expose approach stage');
+assert(guard.includes('function updateEnemyCrewMotion('), 'enemy deck crew should update visible local movement');
+assert(guard.includes('C.crewMotionOffset('), 'crew motion helper should drive deck-local movement');
+assert(guard.includes("approachStage==='ranged'"), 'ranged combat stage should be explicit before docking');
+assert(!guard.includes('d=Math.hypot(dx,dy)||1,v=ship.cfg.speed'), 'old full-speed rush approach should be removed');
 
 console.log('deck guard approach/crew-motion tests passed');
