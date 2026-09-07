@@ -4,12 +4,20 @@ on:
   push:
     branches: [main]
     paths:
+      - 'index.html'
+      - 'combat.js'
+      - 'guard.js'
+      - 'style.css'
+      - 'favicon.svg'
+      - 'README.md'
+      - 'README_操作说明.txt'
+      - 'CHANGELOG.md'
+      - 'tests/deck_guard_approach.test.js'
       - '.github/workflows/pages.yml'
-      - 'scripts/mobile_swarm_patch.py'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -24,13 +32,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
+      - name: Checkout canonical source
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Apply one-time paced approach migration
-        run: python scripts/mobile_swarm_patch.py
 
       - name: Verify current deck guard
         run: |
@@ -47,26 +50,17 @@ jobs:
           assert 'C.guardApproachSpeed(ship.type,d)' in g
           assert 'function updateEnemyCrewMotion(' in g
           assert 'deck-guard-ranged-approach-2026-09-07' in h
-          print('paced deck guard acceptance: PASS')
+          print('canonical paced deck guard acceptance: PASS')
           PY
 
-      - name: Commit migrated source once
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html guard.js README_操作说明.txt
-          if ! git diff --cached --quiet; then
-            git commit -m "feat: paced ranged approach and moving deck crew"
-            git push origin main
-          fi
-
-      - name: Build Pages artifact
+      - name: Build Pages artifact and matching source ZIP
         run: |
           rm -rf _site
           mkdir -p _site/downloads
           cp index.html combat.js guard.js style.css favicon.svg README_操作说明.txt _site/
+          if [ -f CHANGELOG.md ]; then cp CHANGELOG.md _site/; fi
           touch _site/.nojekyll
-          zip -q _site/downloads/latest_deck_guard_demo.zip index.html combat.js guard.js style.css favicon.svg README_操作说明.txt
+          zip -q _site/downloads/latest_deck_guard_demo.zip index.html combat.js guard.js style.css favicon.svg README_操作说明.txt CHANGELOG.md
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
