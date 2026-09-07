@@ -50,7 +50,7 @@ const C={
     for(let i=0;i<poly.length;i++){
       const c=poly[i],d=poly[(i+1)%poly.length],sx=d[0]-c[0],sy=d[1]-c[1],den=rx*sy-ry*sx;
       if(Math.abs(den)<1e-9)continue;
-      const qx=c[0]-ax,qy=c[1]-ay,t=(qx*sy-qy*rx)/den,u=(qx*ry-qy*rx)/den;
+      const qx=c[0]-ax,qy=c[1]-ay,t=(qx*sy-qy*sx)/den,u=(qx*ry-qy*rx)/den;
       if(t>=0&&t<=1&&u>=0&&u<=1&&(best===null||t<best))best=t;
     }
     if(best===null&&this.pointInPolygon(bx,by,poly))return 1;
