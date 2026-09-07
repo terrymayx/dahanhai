@@ -1,0 +1,26 @@
+name: Deck Guard Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'combat.js'
+      - 'guard.js'
+      - 'tests/deck_guard_approach.test.js'
+      - '.github/workflows/deck-guard-regression.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check combat.js
+          node --check guard.js
+      - name: Deck guard approach and crew motion
+        run: node tests/deck_guard_approach.test.js
