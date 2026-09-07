@@ -29,42 +29,34 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Patch latest demo
+      - name: Apply one-time paced approach migration
         run: python scripts/mobile_swarm_patch.py
 
-      - name: Check JavaScript syntax
-        run: node --check guard.js
-
-      - name: Verify 10x mass crew build
+      - name: Verify current deck guard
         run: |
+          node --check combat.js
+          node --check guard.js
+          node tests/deck_guard_approach.test.js
           python - <<'PY'
           from pathlib import Path
           g=Path('guard.js').read_text(encoding='utf-8')
           h=Path('index.html').read_text(encoding='utf-8')
-          c=Path('style.css').read_text(encoding='utf-8')
           assert 'ALLIED_SHOOTERS=60' in g
           assert 'ALLIED_DEFENDERS=60' in g
-          assert "crew:30,boarders:40" in g
-          assert "crew:50,boarders:80" in g
-          assert "crew:70,boarders:140" in g
-          assert 'ACTIVE_BOARDER_CAP=220' in g
-          assert "ship.type==='large'?12:8" in g
-          assert 'MAX_OPEN=2' in g
-          assert 'MAX_ACTIVE_SHIPS=5' in g
-          assert 'SWARM_TOTAL=14' in g
-          assert 'deck-guard-mass-crew-10x-2026-09-07' in h
-          assert 'mass-crew-10x' in c
-          assert 'safe-area-inset-left' in c
-          print('10x mass crew acceptance: PASS')
+          assert 'MAX_OPEN=2' in g and 'MAX_ACTIVE_SHIPS=5' in g
+          assert 'C.guardApproachSpeed(ship.type,d)' in g
+          assert 'function updateEnemyCrewMotion(' in g
+          assert 'deck-guard-ranged-approach-2026-09-07' in h
+          print('paced deck guard acceptance: PASS')
           PY
 
-      - name: Commit latest demo
+      - name: Commit migrated source once
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html guard.js style.css README_操作说明.txt
+          git add index.html guard.js README_操作说明.txt
           if ! git diff --cached --quiet; then
-            git commit -m "feat: 10x mass crew deck guard"
+            git commit -m "feat: paced ranged approach and moving deck crew"
             git push origin main
           fi
 
