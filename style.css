@@ -46,3 +46,11 @@
   .defense-pad{width:144px}.defense-pad button,.defense-pad button:first-child,.defense-pad button:last-child{min-width:44px;min-height:44px;font-size:10px}
   .ability{width:55px;height:68px}.ability-icon{width:44px;height:44px}.primary{width:70px;height:84px}.primary .ability-icon{width:58px;height:58px}
 }
+
+
+/* mass-crew-10x */
+@media (orientation:landscape) and (max-width:1100px), (orientation:landscape) and (max-height:540px){
+  .enemy-live{display:inline-flex;align-items:center;gap:2px}
+  .ship-card{background:#062f3bb8}
+  #toast{pointer-events:none}
+}

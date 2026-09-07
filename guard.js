@@ -1,13 +1,13 @@
 (()=>{'use strict';
 const $=id=>document.getElementById(id), canvas=$('sea'), ctx=canvas.getContext('2d'), mini=$('minimap').getContext('2d');
 const C=Combat, TAU=Math.PI*2, YCOMP=.76, ZS=.34, ZR=.88, HULL=[[-176,-55],[-132,-72],[75,-64],[185,0],[75,64],[-132,72],[-176,55]];
-const PLAYER_X=920, PLAYER_Y=1060, PLAYER_SCALE=1.75, AUTO_SPEED=105, VOLLEY_RELOAD=12, MAX_OPEN=2, MAX_ACTIVE_SHIPS=5, SWARM_TOTAL=14;
+const PLAYER_X=920, PLAYER_Y=1060, PLAYER_SCALE=1.75, AUTO_SPEED=105, VOLLEY_RELOAD=12, MAX_OPEN=2, MAX_ACTIVE_SHIPS=5, SWARM_TOTAL=14, ALLIED_SHOOTERS=60, ALLIED_DEFENDERS=60, ACTIVE_BOARDER_CAP=220, DECK_PRESSURE_LIMIT=140;
 const DECK={upperEntry:{x:38,y:-48},lowerEntry:{x:38,y:48},center:{x:-12,y:0},cabin:{x:-112,y:0},upperGun:{x:44,y:-46},lowerGun:{x:44,y:46}};
 const DEF_ZONES={upper:{x:15,y:-39},center:{x:-6,y:0},lower:{x:15,y:39}};
-const SHOOTERS=[
- {kind:'bow',x:-112,y:-31},{kind:'bow',x:-55,y:-34},{kind:'bow',x:16,y:32},{kind:'bow',x:88,y:28},
- {kind:'musket',x:-78,y:29},{kind:'musket',x:58,y:-29}
-];
+const SHOOTERS=Array.from({length:ALLIED_SHOOTERS},(_,i)=>{
+ const cols=12,row=Math.floor(i/cols),col=i%cols;
+ return{kind:i%3===2?'musket':'bow',x:-132+col*20.5+(row%2?5:0),y:-34+row*17};
+});
 const WAVES=[
  {at:3,label:'双艇试探',spawns:[{type:'skiff',side:'upper'},{type:'skiff',side:'lower',delay:4}]},
  {at:38,label:'小艇连续压迫',spawns:[{type:'skiff',side:'lower'},{type:'skiff',side:'upper',delay:5},{type:'skiff',side:'lower',delay:11}]},
@@ -17,10 +17,10 @@ const WAVES=[
  {at:235,label:'小艇收尾围攻',spawns:[{type:'skiff',side:'upper'},{type:'skiff',side:'lower',delay:8}]}
 ];
 const SHIP_CFG={
- skiff:{name:'快速运兵艇',hp:165,speed:155,crew:3,boarders:4,connectHp:72,size:.72,range:500},
- support:{name:'远程掩护艇',hp:170,speed:125,crew:5,boarders:2,connectHp:70,size:.78,range:590,support:true},
- medium:{name:'中型运兵船',hp:330,speed:112,crew:5,boarders:8,connectHp:115,size:.9,range:560},
- large:{name:'大型登船舰',hp:540,speed:88,crew:7,boarders:14,connectHp:125,size:1.08,range:600,connections:2}
+ skiff:{name:'快速运兵艇',hp:165,speed:155,crew:30,boarders:40,connectHp:72,size:.72,range:500},
+ support:{name:'远程掩护艇',hp:170,speed:125,crew:50,boarders:20,connectHp:70,size:.78,range:590,support:true},
+ medium:{name:'中型运兵船',hp:330,speed:112,crew:50,boarders:80,connectHp:115,size:.9,range:560},
+ large:{name:'大型登船舰',hp:540,speed:88,crew:70,boarders:140,connectHp:125,size:1.08,range:600,connections:2}
 };
 let width=0,height=0,scale=1,dpr=1,raf=0,last=0,sound=false,audio=null,debug=false,state;
 const rand=(a,b)=>a+Math.random()*(b-a), clamp=C.clamp;
@@ -36,40 +36,91 @@ function burst(x,y,color,n=8,power=50,type='smoke',z=20){for(let i=0;i<n;i++){co
 function splash(x,y){burst(x,y,'#dffaff',13,48,'water',0);}
 function floatText(x,y,text,color='#f3e8c8',size=12,key=''){const old=key&&state.texts.find(t=>t.key===key&&t.life>.45);if(old&&/^\d+$/.test(String(text))&&/^\d+$/.test(String(old.text))){old.text=String(Number(old.text)+Number(text));old.life=.9;return;}state.texts.push({x,y,text:String(text),color,size,life:1,key});alloc(state.texts,24);}
 function makeShooter(i){const b=SHOOTERS[i];return{id:'pS'+i,team:'player',kind:b.kind,lx:b.x,ly:b.y,homeLx:b.x,homeLy:b.y,x:b.x,y:b.y,hp:b.kind==='musket'?38:31,maxHp:b.kind==='musket'?38:31,alive:true,cd:.15+i*(b.kind==='bow'?.21:.37),action:'idle',timer:0,facing:0,recoil:0,role:'shooter'};}
-function makeDefender(i,side,reserve=false){const y=side==='upper'?-38:side==='lower'?38:(i%2?-8:8),x=reserve?-16:(i%2?12:38);return{id:'pD'+i,team:'player',kind:'melee',lx:x,ly:y,x,y,hp:72,maxHp:72,alive:true,down:false,reserve,zone:reserve?'center':side,targetZone:reserve?'center':side,cd:.2+i*.12,action:'idle',timer:0,facing:0,role:'melee',rescue:0};}
-function playerShip(){const p={id:0,team:'player',x:PLAYER_X,y:PLAYER_Y,a:0,hp:520,maxHp:520,water:0,sail:100,sink:0,dead:false,gunHp:{upper:150,lower:150},gunMax:150,breaches:[],recoil:{upper:0,lower:0}};p.shooters=Array.from({length:6},(_,i)=>makeShooter(i));p.defenders=[makeDefender(0,'upper'),makeDefender(1,'upper'),makeDefender(2,'lower'),makeDefender(3,'lower'),makeDefender(4,'center',true),makeDefender(5,'center',true)];return p;}
-function enemyCrew(ship,i){const kind=i%3===0?'musket':'bow';return{id:`e${ship.id}c${i}`,team:'enemy',kind,hp:kind==='musket'?28:24,maxHp:kind==='musket'?28:24,alive:true,cd:.35+i*.26,lx:-55+(i%4)*34,ly:(i%2?-1:1)*28,facing:Math.PI,action:'idle',timer:0,recoil:0};}
-function roster(type,n){const arr=[];for(let i=0;i<n;i++){let kind='assault';if(type==='large'){if(i<4)kind='shield';else if(i%5===0)kind='breaker';}else if(type==='medium'&&i%4===0)kind='breaker';else if(type==='skiff'&&i===0)kind='shield';else if(type==='support'&&i===0)kind='breaker';arr.push(kind);}return arr;}
+function makeDefender(i,side,reserve=false){
+ const group=reserve?i-40:side==='lower'?i-20:i;let x,y;
+ if(reserve){x=-86+(group%10)*18;y=Math.floor(group/10)===0?-15:15;}
+ else{x=-96+(group%10)*20;const row=Math.floor(group/10);y=(side==='upper'?-1:1)*(45-row*12);}
+ return{id:'pD'+i,team:'player',kind:'melee',lx:x,ly:y,x,y,hp:72,maxHp:72,alive:true,down:false,reserve,zone:reserve?'center':side,targetZone:reserve?'center':side,cd:.2+(i%10)*.045,action:'idle',timer:0,facing:0,role:'melee',rescue:0};
+}
+function playerShip(){
+ const p={id:0,team:'player',x:PLAYER_X,y:PLAYER_Y,a:0,hp:520,maxHp:520,water:0,sail:100,sink:0,dead:false,gunHp:{upper:150,lower:150},gunMax:150,breaches:[],recoil:{upper:0,lower:0}};
+ p.shooters=Array.from({length:ALLIED_SHOOTERS},(_,i)=>makeShooter(i));
+ p.defenders=[...Array.from({length:20},(_,i)=>makeDefender(i,'upper')),...Array.from({length:20},(_,i)=>makeDefender(i+20,'lower')),...Array.from({length:20},(_,i)=>makeDefender(i+40,'center',true))];
+ return p;
+}
+function enemyCrew(ship,i){
+ const kind=i%3===2?'musket':'bow',cols=10,row=Math.floor(i/cols),col=i%cols;
+ return{id:`e${ship.id}c${i}`,team:'enemy',kind,hp:kind==='musket'?28:24,maxHp:kind==='musket'?28:24,alive:true,cd:.18+(i%9)*.055,lx:-82+col*18+(row%2?4:0),ly:clamp(-32+row*10,-34,34),facing:Math.PI,action:'idle',timer:0,recoil:0};
+}
+function roster(type,n){
+ const arr=[];
+ for(let i=0;i<n;i++){
+  let kind='assault';
+  if(type==='large'){if(i<28)kind='shield';else if(i%7===0)kind='breaker';}
+  else if(type==='medium'){if(i<12)kind='shield';else if(i%6===0)kind='breaker';}
+  else if(type==='skiff'){if(i<8)kind='shield';else if(i%9===0)kind='breaker';}
+  else if(type==='support'){if(i<4)kind='shield';else if(i%5===0)kind='breaker';}
+  arr.push(kind);
+ }
+ return arr;
+}
 let nextShipId=1,nextUnitId=1;
-function makeEnemy(type,side,spawnOffset=0){const cfg=SHIP_CFG[type],sign=side==='upper'?-1:1,x=PLAYER_X+980+spawnOffset,y=PLAYER_Y+sign*390;const ship={id:nextShipId++,team:'enemy',type,cfg,x,y,a:Math.PI,hp:cfg.hp,maxHp:cfg.hp,speed:cfg.speed,side,phase:'approach',phaseTime:0,targetX:PLAYER_X+80,targetY:PLAYER_Y+sign*155,removed:false,sinking:false,sink:0,sinkTimer:0,crew:[],boarderRoster:roster(type,cfg.boarders),launched:0,remaining:cfg.boarders,connections:[],fireCd:.8+rand(0,.8),tagTime:3,withdraw:false,recoil:{upper:0,lower:0}};ship.crew=Array.from({length:cfg.crew},(_,i)=>enemyCrew(ship,i));const count=cfg.connections||1;for(let i=0;i<count;i++){const offset=count===2?(i===0?-54:54):0;ship.connections.push({id:`conn${ship.id}:${i}`,shipId:ship.id,side,slot:i,offset,progress:0,hp:cfg.connectHp,maxHp:cfg.connectHp,phase:'idle',open:false,broken:false,queue:[],crossing:[],spawnCd:0,prep:0});}return ship;}
-function makeBoarder(ship,conn,kind,index){const sign=ship.side==='upper'?-1:1;const start=worldLocal(ship,-10+conn.offset*.35,-sign*50);return{id:nextUnitId++,team:'enemy',kind,shipId:ship.id,connectionId:conn.id,state:'enemyDeck',x:start.x,y:start.y,z:30,lx:0,ly:0,hp:kind==='shield'?92:kind==='breaker'?62:55,maxHp:kind==='shield'?92:kind==='breaker'?62:55,cd:rand(.2,.6),facing:Math.PI,progress:0,dead:false,fall:false,prep:0,targetFacility:null,hitFlash:0};}
+function makeEnemy(type,side,spawnOffset=0){const cfg=SHIP_CFG[type],sign=side==='upper'?-1:1,x=PLAYER_X+980+spawnOffset,y=PLAYER_Y+sign*390;const ship={id:nextShipId++,team:'enemy',type,cfg,x,y,a:Math.PI,hp:cfg.hp,maxHp:cfg.hp,speed:cfg.speed,side,phase:'approach',phaseTime:0,targetX:PLAYER_X+80,targetY:PLAYER_Y+sign*155,removed:false,sinking:false,sink:0,sinkTimer:0,crew:[],boarderRoster:roster(type,cfg.boarders),launched:0,remaining:cfg.boarders,connections:[],fireCd:.18+rand(0,.45),tagTime:3,withdraw:false,recoil:{upper:0,lower:0}};ship.crew=Array.from({length:cfg.crew},(_,i)=>enemyCrew(ship,i));const count=cfg.connections||1;for(let i=0;i<count;i++){const offset=count===2?(i===0?-54:54):0;ship.connections.push({id:`conn${ship.id}:${i}`,shipId:ship.id,side,slot:i,offset,progress:0,hp:cfg.connectHp,maxHp:cfg.connectHp,phase:'idle',open:false,broken:false,queue:[],crossing:[],spawnCd:0,prep:0});}return ship;}
+function makeBoarder(ship,conn,kind,index){
+ const sign=ship.side==='upper'?-1:1,lane=((index%8)-3.5)*4.5;
+ const start=worldLocal(ship,-38+(index%6)*11+conn.offset*.35,-sign*(48+lane*.22));
+ return{id:nextUnitId++,team:'enemy',kind,shipId:ship.id,connectionId:conn.id,state:'enemyDeck',x:start.x,y:start.y,z:30,lx:0,ly:0,hp:kind==='shield'?92:kind==='breaker'?62:55,maxHp:kind==='shield'?92:kind==='breaker'?62:55,cd:rand(.2,.6),facing:Math.PI,progress:0,dead:false,fall:false,prep:0,targetFacility:null,hitFlash:0};
+}
 function stats(){return{lightFired:0,lightHits:0,cannonFired:0,cannonHits:0,boarded:0,boardersKilled:0,connectionsBroken:0,shipsSunk:0,damageTaken:0,maxUnits:0,maxProjectiles:0,maxFx:0,maxTexts:0};}
 function resetGuard(variant=state?.variant||0){nextShipId=1;nextUnitId=1;const p=playerShip();state={mode:'guard',variant:variant%3,player:p,enemies:[],boarders:[],shots:[],lightShots:[],fx:[],texts:[],cannonQueue:[],time:0,scroll:0,waveIndex:0,pending:[],paused:false,end:null,toast:3,shake:0,volley:0,volleyMax:VOLLEY_RELOAD,repair:0,repairUses:2,targetShipId:null,targetBoarderId:null,reserveZone:'center',cameraX:300,cameraY:430,metrics:stats(),openEntrances:0,settle:0,nextSafeWindow:0};setupGuardUI();$('overlay').classList.add('hidden');$('pause').textContent='Ⅱ';toast('持续航行 · 守住上下船舷，重炮留给关键增援',3);updateHud();}
-function setupGuardUI(){document.title='蔚蓝航路 · 持续航行·甲板守卫战';$('sceneNameTop').textContent='持续航行航线';$('missionTitle').textContent='甲板守卫';$('missionText').textContent='射手拦截 → 靠舷登船 → 调动预备队 → 重炮断援';const tabs=document.querySelector('.scenario-tabs');if(tabs)tabs.innerHTML='<button class="active">甲板守卫</button>';const lt=document.querySelector('.layout-tools');if(lt)lt.innerHTML='<button id="retryGuard">重试本局</button><button id="changeGuard">更换布局</button>';if($('retryGuard'))$('retryGuard').onclick=()=>resetGuard(state.variant);if($('changeGuard'))$('changeGuard').onclick=()=>resetGuard(state.variant+1);document.querySelector('.controls').innerHTML='<div class="defense-pad" id="defensePad"><button data-zone="upper">上舷</button><button data-zone="center" class="active">中央</button><button data-zone="lower">下舷</button></div><span class="move-hint">预备队调度 · 只移动2名预备近战</span>';document.querySelector('.focus-panel').innerHTML='<span>预备队调度</span><div><button data-zone="upper">上舷</button><button data-zone="center" class="active">中央</button><button data-zone="lower">下舷</button></div>';document.querySelectorAll('[data-zone]').forEach(b=>b.onclick=()=>setReserveZone(b.dataset.zone));$('boost').style.display='none';$('volley').querySelector('strong').textContent='舰炮齐射';$('volleyCd').textContent='SPACE · 重炮就绪';$('repairCd').textContent='R · 2次';$('aimStatus').textContent='点击敌船选择舰炮目标';$('targetStatus').textContent='点击甲板敌人指定优先集火';$('speedText').textContent='自动航行 8 kn';const inst=$('instructions');inst.innerHTML='<p><b>守卫</b> 我船自动向右航行。点击上舷／中央／下舷调动2名预备近战，预备队会实际沿甲板移动。</p><p><b>集火</b> 点击海上敌船选择重炮目标；点击登船敌人指定射手和守军优先处理。</p><p><b>舰炮</b> SPACE／右下按钮。开局可用，基础装填约12秒；只有目标位于有效侧舷且对应炮位可用时才发射。</p><p><b>连接</b> 敌船先靠舷，再抛钩／搭跳板，敌人依次通过。全场最多两个主要入口。</p><p><b>兵种</b> 盾兵顶箭火，突击兵抢入口，破坏兵会绕向炮位或船舱，准备后才造成结构伤害。</p><p><b>维修</b> R有限2次，恢复部分船体并修复受损设施，不能复活所有倒地人员。</p>';}
+function setupGuardUI(){document.title='蔚蓝航路 · 持续航行·甲板守卫战';$('sceneNameTop').textContent='持续航行航线';$('missionTitle').textContent='甲板守卫';$('missionText').textContent='射手拦截 → 靠舷登船 → 调动预备队 → 重炮断援';const tabs=document.querySelector('.scenario-tabs');if(tabs)tabs.innerHTML='<button class="active">甲板守卫</button>';const lt=document.querySelector('.layout-tools');if(lt)lt.innerHTML='<button id="retryGuard">重试本局</button><button id="changeGuard">更换布局</button>';if($('retryGuard'))$('retryGuard').onclick=()=>resetGuard(state.variant);if($('changeGuard'))$('changeGuard').onclick=()=>resetGuard(state.variant+1);document.querySelector('.controls').innerHTML='<div class="defense-pad" id="defensePad"><button data-zone="upper">上舷</button><button data-zone="center" class="active">中央</button><button data-zone="lower">下舷</button></div><span class="move-hint">预备队调度 · 只移动20名预备近战</span>';document.querySelector('.focus-panel').innerHTML='<span>预备队调度</span><div><button data-zone="upper">上舷</button><button data-zone="center" class="active">中央</button><button data-zone="lower">下舷</button></div>';document.querySelectorAll('[data-zone]').forEach(b=>b.onclick=()=>setReserveZone(b.dataset.zone));$('boost').style.display='none';$('volley').querySelector('strong').textContent='舰炮齐射';$('volleyCd').textContent='SPACE · 重炮就绪';$('repairCd').textContent='R · 2次';$('aimStatus').textContent='点击敌船选择舰炮目标';$('targetStatus').textContent='点击甲板敌人指定优先集火';$('speedText').textContent='自动航行 8 kn';const inst=$('instructions');inst.innerHTML='<p><b>守卫</b> 我船自动向右航行。点击上舷／中央／下舷调动20名预备近战，预备队会实际沿甲板移动。</p><p><b>集火</b> 点击海上敌船选择重炮目标；点击登船敌人指定射手和守军优先处理。</p><p><b>舰炮</b> SPACE／右下按钮。开局可用，基础装填约12秒；只有目标位于有效侧舷且对应炮位可用时才发射。</p><p><b>连接</b> 敌船先靠舷，再抛钩／搭跳板，敌人依次通过。全场最多两个主要入口。</p><p><b>兵种</b> 盾兵顶箭火，突击兵抢入口，破坏兵会绕向炮位或船舱，准备后才造成结构伤害。</p><p><b>维修</b> R有限2次，恢复部分船体并修复受损设施，不能复活所有倒地人员。</p>';}
 function setReserveZone(zone){if(!DEF_ZONES[zone])return;state.reserveZone=zone;for(const d of state.player.defenders)if(d.reserve)d.targetZone=zone;document.querySelectorAll('[data-zone]').forEach(b=>b.classList.toggle('active',b.dataset.zone===zone));toast('预备队前往'+(zone==='upper'?'上舷':zone==='lower'?'下舷':'中央'),1.25);}
 function spawnWave(w){let delayed=0;for(const spec of w.spawns){const delay=spec.delay||0;state.pending.push({at:state.time+delay,type:spec.type,side:variantSide(spec.side),wave:w.label});delayed=Math.max(delayed,delay);}toast('发现敌情 · '+w.label,2.2);}
 function variantSide(side){if(state.variant===1)return side==='upper'?'lower':'upper';if(state.variant===2&&Math.random()<.45)return side==='upper'?'lower':'upper';return side;}
 function activeThreats(){return state.enemies.filter(e=>!e.removed&&!e.sinking).length;}
 function deckEnemyCount(){return state.boarders.filter(b=>!b.dead&&(b.state==='deck'||b.state==='crossing')).length;}
-function processWaves(){if(state.waveIndex<WAVES.length&&state.time>=WAVES[state.waveIndex].at){if(deckEnemyCount()<=10&&state.openEntrances<MAX_OPEN){spawnWave(WAVES[state.waveIndex]);state.waveIndex++;}else return;}for(let i=state.pending.length-1;i>=0;i--){const p=state.pending[i];if(state.time>=p.at&&activeThreats()<MAX_ACTIVE_SHIPS){const ship=makeEnemy(p.type,p.side,rand(-80,120));state.enemies.push(ship);state.pending.splice(i,1);}}}
+function processWaves(){if(state.waveIndex<WAVES.length&&state.time>=WAVES[state.waveIndex].at){if(deckEnemyCount()<=DECK_PRESSURE_LIMIT&&state.openEntrances<MAX_OPEN){spawnWave(WAVES[state.waveIndex]);state.waveIndex++;}else return;}for(let i=state.pending.length-1;i>=0;i--){const p=state.pending[i];if(state.time>=p.at&&activeThreats()<MAX_ACTIVE_SHIPS){const ship=makeEnemy(p.type,p.side,rand(-80,120));state.enemies.push(ship);state.pending.splice(i,1);}}}
 function connectionWorld(ship,conn,playerSide=false){const sign=ship.side==='upper'?-1:1;if(playerSide){const local={x:38+conn.offset*.55,y:sign*55};return worldLocal(state.player,local.x,local.y);}const local={x:-25+conn.offset*.35,y:-sign*58};return worldLocal(ship,local.x,local.y);}
 function openCount(exclude=null){return state.enemies.flatMap(e=>e.connections).filter(c=>c!==exclude&&!c.broken&&(c.open||c.phase==='building')).length;}
 function updateEnemyShip(ship,dt){if(ship.removed)return;if(ship.sinking){ship.sinkTimer+=dt;ship.sink=clamp(ship.sinkTimer/3.5,0,1);ship.x-=35*dt;if(Math.random()<dt*8)splash(ship.x+rand(-60,60),ship.y+rand(-28,28));if(ship.sink>=1){ship.removed=true;state.metrics.shipsSunk++;}return;}ship.tagTime=Math.max(0,ship.tagTime-dt);ship.fireCd-=dt;const sign=ship.side==='upper'?-1:1;if(ship.phase==='approach'){const tx=PLAYER_X+120+(ship.type==='support'?220:0),ty=PLAYER_Y+sign*(ship.type==='support'?305:210);const dx=tx-ship.x,dy=ty-ship.y,d=Math.hypot(dx,dy)||1,v=ship.cfg.speed;ship.x+=dx/d*v*dt;ship.y+=dy/d*v*dt;ship.a=C.rotateToward(ship.a,0,dt*1.3);if(d<36){ship.phase=ship.cfg.support?'support':'align';ship.phaseTime=0;}}
  else if(ship.phase==='align'){ship.phaseTime+=dt;ship.x+=(PLAYER_X+80-ship.x)*dt*.8;ship.y+=(PLAYER_Y+sign*210-ship.y)*dt*.75;if(ship.phaseTime>1.35){const possible=ship.connections.find(c=>!c.broken&&c.phase==='idle');if(possible&&C.connectionOpenAllowed(openCount(possible),MAX_OPEN)){possible.phase='building';ship.phase='connect';ship.phaseTime=0;toast(ship.cfg.name+' 开始建立'+(ship.side==='upper'?'上舷':'下舷')+'连接',1.7);}else ship.phase='waiting';}}
  else if(ship.phase==='waiting'){ship.x+=Math.sin(state.time*.8+ship.id)*8*dt;ship.y+=(PLAYER_Y+sign*285-ship.y)*dt*.5;if(C.connectionOpenAllowed(openCount(),MAX_OPEN)){ship.phase='align';ship.phaseTime=0;}}
  else if(ship.phase==='connect'||ship.phase==='boarding'){ship.x+=(PLAYER_X+80-ship.x)*dt*.95;ship.y+=(PLAYER_Y+sign*210-ship.y)*dt*.95;let any=false;for(const c of ship.connections){if(c.broken)continue;if(c.phase==='building'){c.progress=C.boardingAdvance(c.progress,dt,2.25+(ship.type==='large'?0.6:0));if(c.progress>=1){c.phase='open';c.open=true;state.openEntrances=openCount();ship.phase='boarding';c.spawnCd=.25;toast('跳板已架好 · '+(ship.side==='upper'?'上舷':'下舷')+'开始登船',1.5);}any=true;}else if(c.open){any=true;updateConnectionBoarding(ship,c,dt);}}
-   if(ship.phase==='boarding'&&ship.type==='large'&&ship.connections.length>1){const second=ship.connections[1];if(!second.broken&&second.phase==='idle'&&ship.launched>=4&&C.connectionOpenAllowed(openCount(),MAX_OPEN)){second.phase='building';second.progress=0;toast('大型登船舰准备第二处连接',1.4);}}
+   if(ship.phase==='boarding'&&ship.type==='large'&&ship.connections.length>1){const second=ship.connections[1];if(!second.broken&&second.phase==='idle'&&ship.launched>=28&&C.connectionOpenAllowed(openCount(),MAX_OPEN)){second.phase='building';second.progress=0;toast('大型登船舰准备第二处连接',1.4);}}
    if(!any||ship.remaining<=0&&ship.connections.every(c=>c.crossing.length===0)){for(const c of ship.connections){if(!c.broken){c.open=false;c.phase='idle';c.progress=0;}}ship.phase='withdraw';ship.phaseTime=0;}}
  else if(ship.phase==='support'){ship.x+=(PLAYER_X+280-ship.x)*dt*.35;ship.y+=(PLAYER_Y+sign*290-ship.y)*dt*.35;if(ship.hp<ship.maxHp*.45)ship.phase='withdraw';}
  else if(ship.phase==='withdraw'){ship.phaseTime+=dt;ship.x+=125*dt;ship.y+=sign*24*dt;if(ship.x>PLAYER_X+1000)ship.removed=true;}
  // remote crew fire during approach/connected states
- if(!ship.sinking&&ship.phase!=='withdraw'&&ship.fireCd<=0&&Math.hypot(ship.x-PLAYER_X,ship.y-PLAYER_Y)<ship.cfg.range){ship.fireCd=rand(1.35,2.3);enemyLightFire(ship);}
+ if(!ship.sinking&&ship.phase!=='withdraw'&&ship.fireCd<=0&&Math.hypot(ship.x-PLAYER_X,ship.y-PLAYER_Y)<ship.cfg.range){ship.fireCd=rand(.22,.38);enemyLightFire(ship);}
 }
-function updateConnectionBoarding(ship,conn,dt){if(conn.broken||!conn.open)return;conn.spawnCd-=dt;const lanes=C.boardingQueueSlots(ship.type==='large'?1:0);const inTransit=state.boarders.filter(b=>!b.dead&&b.connectionId===conn.id&&(b.state==='enemyDeck'||b.state==='crossing')).length;if(conn.spawnCd<=0&&ship.remaining>0&&inTransit<lanes){const kind=ship.boarderRoster[ship.launched]||'assault',b=makeBoarder(ship,conn,kind,ship.launched);state.boarders.push(b);ship.launched++;ship.remaining--;conn.spawnCd=ship.type==='large'?.78:.95;}
+function updateConnectionBoarding(ship,conn,dt){
+ if(conn.broken||!conn.open)return;
+ conn.spawnCd-=dt;
+ let activeBoarders=0,inTransit=0;
+ for(const b of state.boarders){
+  if(b.dead)continue;
+  if(b.state==='enemyDeck'||b.state==='crossing'||b.state==='deck')activeBoarders++;
+  if(b.connectionId===conn.id&&(b.state==='enemyDeck'||b.state==='crossing'))inTransit++;
+ }
+ if(activeBoarders>=ACTIVE_BOARDER_CAP){conn.spawnCd=Math.max(conn.spawnCd,.12);return;}
+ const lanes=ship.type==='large'?12:8;
+ if(conn.spawnCd<=0&&ship.remaining>0&&inTransit<lanes){
+  const kind=ship.boarderRoster[ship.launched]||'assault',b=makeBoarder(ship,conn,kind,ship.launched);
+  state.boarders.push(b);ship.launched++;ship.remaining--;
+  conn.spawnCd=ship.type==='large'?.11:.14;
+ }
 }
 function enemyLightFire(ship){const crew=ship.crew.filter(c=>c.alive);if(!crew.length)return;const c=crew[Math.floor(Math.random()*crew.length)],from=worldLocal(ship,c.lx,c.ly),targets=[...state.player.shooters,...state.player.defenders].filter(u=>u.alive&&!u.down);if(!targets.length)return;const t=targets.sort((a,b)=>threatDistance(ship,a)-threatDistance(ship,b))[0],to=worldLocal(state.player,t.lx,t.ly);spawnLight(c.kind,from,to,true,{ship,crew:c,target:t});}
 function threatDistance(ship,u){const p=worldLocal(state.player,u.lx,u.ly);return Math.hypot(p.x-ship.x,p.y-ship.y);}
-function nearestPlayerTarget(from){const deck=state.boarders.filter(b=>!b.dead&&(b.state==='crossing'||b.state==='deck'));if(state.targetBoarderId){const m=deck.find(b=>b.id===state.targetBoarderId);if(m)return m;}if(deck.length)return deck.sort((a,b)=>Math.hypot(a.x-from.x,a.y-from.y)-Math.hypot(b.x-from.x,b.y-from.y))[0];let candidates=[];for(const s of state.enemies)if(!s.removed&&!s.sinking)for(const c of s.crew)if(c.alive){const p=worldLocal(s,c.lx,c.ly);candidates.push({ship:s,crew:c,x:p.x,y:p.y,z:36,remote:true});}return candidates.sort((a,b)=>Math.hypot(a.x-from.x,a.y-from.y)-Math.hypot(b.x-from.x,b.y-from.y))[0]||null;}
+function nearestPlayerTarget(from){
+ const deck=state.boarders.filter(b=>!b.dead&&(b.state==='crossing'||b.state==='deck'));
+ if(state.targetBoarderId){const m=deck.find(b=>b.id===state.targetBoarderId);if(m)return m;}
+ let best=null,bd=Infinity;
+ for(const b of deck){const dx=b.x-from.x,dy=b.y-from.y,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best=b;}}
+ if(best)return best;
+ for(const s of state.enemies)if(!s.removed&&!s.sinking)for(const c of s.crew)if(c.alive){const p=worldLocal(s,c.lx,c.ly),dx=p.x-from.x,dy=p.y-from.y,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best={ship:s,crew:c,x:p.x,y:p.y,z:36,remote:true};}}
+ return best;
+}
 function updateShooters(dt){for(const s of state.player.shooters){if(!s.alive)continue;const closeThreat=state.boarders.find(b=>!b.dead&&b.state==='deck'&&Math.hypot(b.lx-s.lx,b.ly-s.ly)<34);if(closeThreat){const retreat={x:Math.max(-145,s.homeLx-30),y:clamp(s.homeLy*.55,-28,28)},mv=C.reserveStep({x:s.lx,y:s.ly},retreat,36,dt);s.lx=mv.x;s.ly=mv.y;}else if(Math.hypot(s.lx-s.homeLx,s.ly-s.homeLy)>1){const mv=C.reserveStep({x:s.lx,y:s.ly},{x:s.homeLx,y:s.homeLy},24,dt);s.lx=mv.x;s.ly=mv.y;}s.cd-=dt;s.recoil=Math.max(0,s.recoil-dt);if(s.action!=='idle'){s.timer-=dt;if(s.timer<=0){if(s.action==='aim'){const from=worldLocal(state.player,s.lx,s.ly),t=nearestPlayerTarget(from);if(t&&Math.hypot(t.x-from.x,t.y-from.y)<(s.kind==='bow'?510:610)&&!blockedLight(from,t)){s.facing=Math.atan2(t.y-from.y,t.x-from.x);spawnLight(s.kind,from,{x:t.x,y:t.y,z:t.z||30},false,{target:t,shooter:s});s.action='fire';s.timer=s.kind==='bow'?.14:.16;s.recoil=s.kind==='musket'?.16:0;}else{s.action='idle';s.cd=.2;}}else{s.action='idle';s.cd=s.kind==='bow'?rand(.85,1.3):rand(1.75,2.55);}}continue;}if(s.cd<=0){const from=worldLocal(state.player,s.lx,s.ly),near=nearestPlayerTarget(from);if(near&&Math.hypot(near.x-from.x,near.y-from.y)<(s.kind==='bow'?510:610)){const localThreat=state.boarders.some(b=>!b.dead&&b.state==='deck'&&Math.hypot(b.lx-s.lx,b.ly-s.ly)<30);if(localThreat){s.cd=.55;continue;}s.action='aim';s.timer=s.kind==='bow'?.25:.31;}else s.cd=.22;}}
 }
 function blockedLight(from,to){for(const e of state.enemies){if(e.removed||e.sinking)continue;const l1=localOf(e,from.x,from.y),l2=localOf(e,to.x,to.y);if(C.segmentPolygonHit(l1.x,l1.y,l2.x,l2.y,HULL)!==null){const targetOnShip=Math.hypot(to.x-e.x,to.y-e.y)<190;if(!targetOnShip)return true;}}return false;}
@@ -87,7 +138,11 @@ function updateBoarders(dt){for(const u of state.boarders){u.hitFlash=Math.max(0
  else if(u.state==='falling'){u.z=Math.max(0,u.z-85*dt);u.x+=(ship?Math.sign(u.x-ship.x):1)*18*dt;if(u.z<=0){splash(u.x,u.y);u.dead=true;}}
  else if(u.state==='deck'){updateDeckEnemy(u,dt);}}
  state.boarders=state.boarders.filter(u=>!u.dead||u.z>1);}
-function nearestDefender(u){const alive=state.player.defenders.filter(d=>d.alive&&!d.down);return alive.sort((a,b)=>Math.hypot(a.lx-u.lx,a.ly-u.ly)-Math.hypot(b.lx-u.lx,b.ly-u.ly))[0]||null;}
+function nearestDefender(u){
+ let best=null,bd=Infinity;
+ for(const d of state.player.defenders){if(!d.alive||d.down)continue;const dx=d.lx-u.lx,dy=d.ly-u.ly,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;best=d;}}
+ return best;
+}
 const DECK_OBSTACLES=[{x:-8,y:0,r:16},{x:-58,y:20,r:13},{x:55,y:-8,r:12}];
 function deckNavTarget(u,goal){for(const o of DECK_OBSTACLES){const t=C.segmentCircleFirst(u.lx,u.ly,goal.x,goal.y,o.x,o.y,o.r+5);if(t!==null&&Math.hypot(u.lx-o.x,u.ly-o.y)>o.r+7){const side=u.ly<=o.y?-1:1;return{x:o.x+18,y:o.y+side*(o.r+12)};}}return goal;}
 function updateDeckEnemy(u,dt){u.cd=Math.max(0,u.cd-dt);const def=nearestDefender(u);let goal;if(u.kind==='breaker'){const side=u.ly<0?'upper':'lower',facility=state.player.gunHp[side]>0?(side==='upper'?DECK.upperGun:DECK.lowerGun):DECK.cabin;u.targetFacility=state.player.gunHp[side]>0?side+'Gun':'cabin';goal=facility;}else goal=DECK.center;
@@ -96,7 +151,7 @@ function meleeEnemyAttack(u,d){d.hp=Math.max(0,d.hp-(u.kind==='shield'?9:12));d.
 function damageFacility(u){const side=u.ly<0?'upper':'lower';if(state.player.gunHp[side]>0){state.player.gunHp[side]=Math.max(0,state.player.gunHp[side]-34);floatText(...Object.values(worldLocal(state.player,side==='upper'?44:44,side==='upper'?-46:46)),34,'#ff9b69',15,'fac'+side);toast('破坏兵正在破坏'+(side==='upper'?'上':'下')+'舷炮位！',1.3);}else{state.player.hp=Math.max(0,state.player.hp-42);state.metrics.damageTaken+=42;floatText(...Object.values(worldLocal(state.player,DECK.cabin.x,DECK.cabin.y)),42,'#ff8e72',16,'cabin');toast('船舱入口遭到破坏！',1.2);}}
 function updateDefenders(dt){for(const d of state.player.defenders){if(d.down){d.rescue+=dt;if(d.rescue>8&&safeAround(d)){d.down=false;d.alive=true;d.hp=Math.max(28,d.maxHp*.42);d.rescue=0;floatText(...Object.values(worldLocal(state.player,d.lx,d.ly)),'救起','#9fe4b7',12);}continue;}if(!d.alive)continue;d.cd=Math.max(0,d.cd-dt);if(d.action==='hit'){d.timer-=dt;if(d.timer<=0)d.action='idle';}
   const zone=d.reserve?d.targetZone:d.zone,targetPos=d.reserve?DEF_ZONES[zone]:{x:d.lx,y:d.ly};if(d.reserve){const step=C.reserveStep({x:d.lx,y:d.ly},targetPos,56,dt);d.lx=step.x;d.ly=step.y;}
-  const enemies=state.boarders.filter(u=>!u.dead&&u.state==='deck').sort((a,b)=>Math.hypot(a.lx-d.lx,a.ly-d.ly)-Math.hypot(b.lx-d.lx,b.ly-d.ly));const u=(state.targetBoarderId&&enemies.find(e=>e.id===state.targetBoarderId))||enemies[0];if(u&&Math.hypot(u.lx-d.lx,u.ly-d.ly)<29&&d.cd<=0){u.hp=Math.max(0,u.hp-16);u.prep=0;d.cd=.68;d.action='attack';d.timer=.18;d.facing=Math.atan2(u.ly-d.ly,u.lx-d.lx);floatText(u.x,u.y,16,'#dff0cf',10,'melee'+u.id);if(u.hp<=0){u.dead=true;u.state='dead';state.metrics.boardersKilled++;}}}
+  let u=null,bd=Infinity;if(state.targetBoarderId)u=state.boarders.find(e=>e.id===state.targetBoarderId&&!e.dead&&e.state==='deck')||null;if(!u){for(const e of state.boarders){if(e.dead||e.state!=='deck')continue;const dx=e.lx-d.lx,dy=e.ly-d.ly,dd=dx*dx+dy*dy;if(dd<bd){bd=dd;u=e;}}}if(u&&Math.hypot(u.lx-d.lx,u.ly-d.ly)<29&&d.cd<=0){u.hp=Math.max(0,u.hp-16);u.prep=0;d.cd=.68;d.action='attack';d.timer=.18;d.facing=Math.atan2(u.ly-d.ly,u.lx-d.lx);floatText(u.x,u.y,16,'#dff0cf',10,'melee'+u.id);if(u.hp<=0){u.dead=true;u.state='dead';state.metrics.boardersKilled++;}}}
 }
 function safeAround(d){return !state.boarders.some(u=>!u.dead&&u.state==='deck'&&Math.hypot(u.lx-d.lx,u.ly-d.ly)<45);}
 function updateConnections(dt){state.openEntrances=openCount();for(const s of state.enemies){for(const c of s.connections){if(c.broken)continue;if(c.hp<=0){breakConnection(s,c);}}}}
